@@ -19,10 +19,8 @@ WORKDIR /app
 # Copy backend production dependencies
 COPY --from=backend-deps /app/node_modules ./node_modules
 
-# Copy Next.js standalone build (includes _next/static via symlink)
-COPY --from=frontend-builder /app/frontend/.next/standalone ./frontend-build
-COPY --from=frontend-builder /app/frontend/.next/static ./frontend-build/.next/static
-COPY --from=frontend-builder /app/frontend/public ./frontend-build/public
+# Copy Next.js static export
+COPY --from=frontend-builder /app/frontend/out ./frontend-build
 
 # Copy backend source
 COPY backend/ ./backend/
