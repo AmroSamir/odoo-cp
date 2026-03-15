@@ -25,9 +25,8 @@ COPY --from=frontend-builder /app/frontend/out ./frontend-build
 # Copy backend source
 COPY backend/ ./backend/
 
-# Security: run as non-root
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
+# Note: runs as root to access /var/run/docker.sock for container management.
+# The container is network-isolated and only exposed via nginx reverse proxy.
 
 ENV NODE_ENV=production
 EXPOSE 3000
