@@ -18,7 +18,9 @@ set -e
 # ╚════════════════════════════════════════════════════════════════════╝
 
 # ── Fixed Configuration ─────────────────────────────────────────────
-INSTALL_DIR="/opt/odoo19e-docker"
+# INSTALL_DIR = the directory this script lives in (the cloned repo)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_DIR="$SCRIPT_DIR"
 BACKUP_DIR="/opt/backups"
 DROPBOX_URL="https://www.dropbox.com/scl/fi/rtt0vplxrao3elzk3fooz/odoo19e-docker.zip?rlkey=k1vwn8g2s1eao07kc6hqnyusp&st=29zgcif9&dl=1"
 ODOO_UNLIMITED_URL="https://www.dropbox.com/scl/fi/8f9l9h2w1z8r6qkzefc97/odoo_unlimited.zip?rlkey=a4j5kpiktxc06827tzelj5j4r&st=ju8fh4oi&dl=1"
@@ -93,6 +95,16 @@ while true; do
   if [ -n "$SSL_EMAIL" ]; then break; fi
   err "Email is required for SSL certificates"
 done
+
+echo ""
+echo -e "${BOLD}Dashboard admin credentials:${NC}"
+while true; do
+  read -s -p "  Dashboard password: " DASHBOARD_ADMIN_PASSWORD
+  echo
+  if [ -n "$DASHBOARD_ADMIN_PASSWORD" ]; then break; fi
+  err "Dashboard password is required"
+done
+DASHBOARD_SECRET=$(openssl rand -hex 32)
 
 echo ""
 echo -e "${BOLD}┌────────────────────────────────────────────┐${NC}"
@@ -172,60 +184,35 @@ fi
 # ════════════════════════════════════════════════════════════════════
 # STEP 3: Download and extract Odoo from Dropbox
 # ════════════════════════════════════════════════════════════════════
-step "Step 3/9 — Downloading Odoo 19 + Enterprise plugins from Dropbox"
+step "Step 3/9 — Downloading Odoo Enterprise add-ons"
 
-if [ -d "$INSTALL_DIR" ]; then
-  warn "$INSTALL_DIR already exists"
-  read -p "Remove and re-download? (y/n): " -n 1 -r
-  echo
-  if [[ $REPLY =~ ^[Yy]$ ]]; then
-    if [ -d "$INSTALL_DIR/odoo-db-data" ]; then
-      warn "Preserving existing database data..."
-      mv "$INSTALL_DIR/odoo-db-data" /tmp/odoo-db-data-backup 2>/dev/null || true
-    fi
-    rm -rf "$INSTALL_DIR"
+# Only download addons/ if it doesn't already exist (or is empty)
+if [ -d "$INSTALL_DIR/addons" ] && [ "$(ls -A "$INSTALL_DIR/addons" 2>/dev/null)" ]; then
+  log "addons/ already exists — skipping download"
+else
+  log "Downloading Odoo Enterprise package from Dropbox (~900 MB)..."
+  wget "$DROPBOX_URL" -O /tmp/odoo19e-docker.zip
+  log "Extracting addons/ directory..."
+  mkdir -p /tmp/odoo-extract
+  unzip -o /tmp/odoo19e-docker.zip -d /tmp/odoo-extract
+
+  # Find the addons/ directory inside the extracted zip (handles any root folder name)
+  ADDONS_SRC=$(find /tmp/odoo-extract -maxdepth 3 -name "addons" -type d | head -1)
+  if [ -n "$ADDONS_SRC" ]; then
+    cp -r "$ADDONS_SRC" "$INSTALL_DIR/addons"
+    log "addons/ installed ($(ls "$INSTALL_DIR/addons" | wc -l) modules)"
   else
-    log "Keeping existing directory, skipping download"
+    warn "Could not locate addons/ inside the downloaded zip — you may need to add it manually"
   fi
-fi
 
-if [ ! -d "$INSTALL_DIR" ]; then
-  cd /opt
-  log "Downloading odoo19e-docker.zip..."
-  wget "$DROPBOX_URL" -O odoo19e-docker.zip
-  log "Extracting..."
-  unzip -o odoo19e-docker.zip
-  rm -f odoo19e-docker.zip
-  log "Odoo base extracted to $INSTALL_DIR"
-
-  if [ -d "/tmp/odoo-db-data-backup" ]; then
-    mv /tmp/odoo-db-data-backup "$INSTALL_DIR/odoo-db-data"
-    log "Database data restored"
-  fi
+  rm -rf /tmp/odoo-extract /tmp/odoo19e-docker.zip
 fi
 
 cd "$INSTALL_DIR"
 
-log "Checking extracted contents..."
-if [ -d "$INSTALL_DIR/odoo_unlimited" ]; then
-  log "Found odoo_unlimited folder — moving to extra-addons/"
-  mkdir -p "$INSTALL_DIR/extra-addons"
-  mv "$INSTALL_DIR/odoo_unlimited" "$INSTALL_DIR/extra-addons/odoo_unlimited"
-  log "Enterprise plugins placed in extra-addons/odoo_unlimited/"
-elif [ -d "$INSTALL_DIR/extra-addons/odoo_unlimited" ]; then
-  log "odoo_unlimited already in extra-addons/, good"
-elif [ -d "$INSTALL_DIR/addons/odoo_unlimited" ]; then
-  log "odoo_unlimited found in addons/, good"
-else
-  warn "Could not find odoo_unlimited folder automatically"
-  warn "You may need to manually place it after the script finishes"
-fi
-
 mkdir -p "$INSTALL_DIR/extra-addons/custom"
 mkdir -p "$INSTALL_DIR/odoo-data"
-mkdir -p "$INSTALL_DIR/odoo-data-staging"
-log "Custom addons directory ready at extra-addons/custom/"
-log "Filestore directories created (odoo-data/ and odoo-data-staging/)"
+log "Required directories ready"
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -681,6 +668,8 @@ log "Daily backup cron job added (2:00 AM)"
 # ════════════════════════════════════════════════════════════════════
 step "Step 8/9 — Initializing Git repository & firewall"
 
+# Only write .gitignore if one doesn't already exist (repo already has one)
+if [ ! -f "$INSTALL_DIR/.gitignore" ]; then
 cat > "$INSTALL_DIR/.gitignore" << 'GITIGNORE'
 # Environment & secrets
 .env
@@ -717,6 +706,18 @@ dashboard/frontend/.next/
 dashboard/node_modules/
 dashboard/frontend/node_modules/
 GITIGNORE
+else
+  log ".gitignore already exists — skipping"
+fi
+
+# ── Create .env with dashboard credentials ──
+cat > "$INSTALL_DIR/.env" << ENVFILE
+# Dashboard credentials — keep this file secret, never commit it
+DASHBOARD_SECRET=${DASHBOARD_SECRET}
+DASHBOARD_ADMIN_PASSWORD=${DASHBOARD_ADMIN_PASSWORD}
+ENVFILE
+chmod 600 "$INSTALL_DIR/.env"
+log "Dashboard .env created at $INSTALL_DIR/.env"
 
 cat > "$INSTALL_DIR/.deploy-config" << DEPLOYCONFIG
 # Odoo 19 Enterprise — Deployment Configuration
@@ -746,15 +747,14 @@ if [ ! -d ".git" ]; then
   git add .
   git commit -m "initial: Odoo 19 Enterprise setup"
   log "Git repository initialized"
+  echo ""
+  warn "Git remote not set — run this when you have a repo URL:"
+  echo -e "  ${CYAN}cd $INSTALL_DIR${NC}"
+  echo -e "  ${CYAN}git remote add origin YOUR_GIT_REPO_URL${NC}"
+  echo -e "  ${CYAN}git push -u origin main${NC}"
 else
   log "Git repository already exists"
 fi
-
-echo ""
-warn "Git remote not set — run this when you have a repo URL:"
-echo -e "  ${CYAN}cd $INSTALL_DIR${NC}"
-echo -e "  ${CYAN}git remote add origin YOUR_GIT_REPO_URL${NC}"
-echo -e "  ${CYAN}git push -u origin main${NC}"
 
 ufw allow 22/tcp
 ufw allow 80/tcp
