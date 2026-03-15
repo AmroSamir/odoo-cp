@@ -4,7 +4,8 @@ const jwt = require('jsonwebtoken');
 const config = require('../config');
 
 // Routes that don't require authentication
-const PUBLIC_PATHS = new Set(['/api/auth/login', '/api/health']);
+// Note: when mounted via app.use('/api', authMiddleware), req.path has the /api prefix stripped
+const PUBLIC_PATHS = new Set(['/auth/login', '/health']);
 
 /**
  * JWT authentication middleware.
