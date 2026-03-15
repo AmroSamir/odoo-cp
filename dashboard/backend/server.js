@@ -44,7 +44,7 @@ const frontendPath = path.join(__dirname, '..', 'frontend-build');
 app.use(express.static(frontendPath));
 
 // SPA fallback — all non-API routes serve the Next.js app
-app.get('*', (req, res, next) => {
+app.get('/{*splat}', (req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
   res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
     if (err) {
