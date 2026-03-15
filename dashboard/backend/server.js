@@ -43,15 +43,25 @@ app.use('/api', apiRoutes);
 const frontendPath = path.join(__dirname, '..', 'frontend-build');
 app.use(express.static(frontendPath));
 
-// SPA fallback — all non-API routes serve the Next.js app
+// SPA fallback — serve the matching static HTML for each route
+const fs = require('fs');
 app.get('/{*splat}', (req, res, next) => {
   if (req.path.startsWith('/api/')) return next();
-  res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
-    if (err) {
-      // Frontend not built yet (development mode)
-      res.status(404).json({ error: 'Frontend not built. Run: cd frontend && npm run build' });
-    }
-  });
+
+  // For static export, try serving the specific page HTML first
+  // e.g. /login → login.html, /instances → instances.html
+  const cleanPath = req.path.replace(/\/+$/, '') || '/index';
+  const candidates = [
+    path.join(frontendPath, `${cleanPath}.html`),
+    path.join(frontendPath, cleanPath, 'index.html'),
+    path.join(frontendPath, 'index.html'),
+  ];
+
+  const match = candidates.find((f) => fs.existsSync(f));
+  if (match) {
+    return res.sendFile(match);
+  }
+  res.status(404).json({ error: 'Frontend not built. Run: cd frontend && npm run build' });
 });
 
 // ── Error handler (must be last) ─────────────────────────────────────────────
