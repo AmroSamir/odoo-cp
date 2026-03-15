@@ -1,0 +1,46 @@
+# Environment & secrets
+.env
+.env.local
+.deploy-config
+
+# Database & filestore data
+odoo-db-data/
+odoo-db-data-staging/
+odoo-data/
+odoo-data-staging/
+
+# Upstream addons (large, not tracked)
+addons/
+extra-addons/odoo_unlimited/
+
+# Python
+*.pyc
+__pycache__/
+
+# Backups
+backups/
+*.sql
+*.sql.gz
+*.dump
+*.zip
+
+# Staging instances (auto-generated, contain secrets + data)
+staging/stg-*/
+staging/.registry
+staging/.staging.log
+staging/.deploy-history.json
+staging/nginx/
+
+# Dashboard build artifacts & secrets
+dashboard/.env
+dashboard/frontend/.next/
+dashboard/node_modules/
+dashboard/frontend/node_modules/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Claude Code local settings
+.claude/
