@@ -37,7 +37,7 @@ export default function Sidebar() {
               className={`flex items-center gap-3 px-5 py-2 text-[14px] transition-colors duration-150 ${
                 active
                   ? 'text-accent bg-page-bg font-medium'
-                  : 'text-[#475569] hover:text-[#1e293b] hover:bg-page-bg/60'
+                  : 'text-[#8a8a95] hover:text-[#f0f0f0] hover:bg-page-bg/60'
               }`}
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -52,7 +52,7 @@ export default function Sidebar() {
       <div className="px-4 py-3 border-t border-page-border">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 text-[13px] text-[#64748b] hover:text-red-600 transition-colors duration-150"
+          className="flex items-center gap-3 text-[13px] text-[#6a6a75] hover:text-red-400 transition-colors duration-150"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

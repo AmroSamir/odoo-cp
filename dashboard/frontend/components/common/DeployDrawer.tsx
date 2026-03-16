@@ -31,8 +31,8 @@ export default function DeployDrawer({ open, title, logs, deploying, result, onC
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/30 z-40" onClick={handleClose} />
-      <div className="fixed top-0 right-0 h-full w-full max-w-2xl bg-[#0f1b2d] border-l border-[#1e3a52] z-50 flex flex-col shadow-sm">
+      <div className="fixed inset-0 bg-black/60 z-40" onClick={handleClose} />
+      <div className="fixed top-0 right-0 h-full w-full max-w-2xl bg-[#0f1b2d] border-l border-[#1e3a52] z-50 flex flex-col ">
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e3a52]">
           <div className="flex items-center gap-3">
             {deploying && (
@@ -44,11 +44,11 @@ export default function DeployDrawer({ open, title, logs, deploying, result, onC
             <span className="text-[13px] text-[#e2e8f0]">{title}</span>
             {deploying && <span className="text-[11px] font-mono text-amber-400">running</span>}
             {result && <span className={`text-[11px] font-mono ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.success ? 'done' : 'failed'}</span>}
-            <span className="text-[11px] font-mono text-[#64748b]">{formatTime(elapsed)}</span>
+            <span className="text-[11px] font-mono text-[#6a6a75]">{formatTime(elapsed)}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={handleCopy} className="text-[12px] text-[#64748b] hover:text-[#e2e8f0] px-2 py-1 transition-colors duration-150">{copied ? 'Copied' : 'Copy log'}</button>
-            <button onClick={handleClose} className="text-[#64748b] hover:text-[#e2e8f0] text-[16px] px-1 transition-colors duration-150">x</button>
+            <button onClick={handleCopy} className="text-[12px] text-[#6a6a75] hover:text-[#e2e8f0] px-2 py-1 transition-colors duration-150">{copied ? 'Copied' : 'Copy log'}</button>
+            <button onClick={handleClose} className="text-[#6a6a75] hover:text-[#e2e8f0] text-[16px] px-1 transition-colors duration-150">x</button>
           </div>
         </div>
         <div ref={logRef} className="flex-1 overflow-y-auto p-4 font-mono text-[12px] leading-relaxed text-green-300 bg-[#0a1220]">
@@ -59,13 +59,13 @@ export default function DeployDrawer({ open, title, logs, deploying, result, onC
           <div className={`px-4 py-3 border-t border-[#1e3a52] ${result.success ? 'bg-green-950/30' : 'bg-red-950/30'}`}>
             <div className="flex items-center justify-between">
               <p className={`text-[13px] ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
-              <span className="text-[11px] font-mono text-[#64748b]">{formatTime(elapsed)}</span>
+              <span className="text-[11px] font-mono text-[#6a6a75]">{formatTime(elapsed)}</span>
             </div>
             {children}
           </div>
         )}
         {deploying && !result && (
-          <div className="px-4 py-3 border-t border-[#1e3a52] flex items-center gap-2 text-[12px] text-[#64748b]">
+          <div className="px-4 py-3 border-t border-[#1e3a52] flex items-center gap-2 text-[12px] text-[#6a6a75]">
             <svg className="w-3.5 h-3.5 text-[#0ea5e9] animate-spin" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />

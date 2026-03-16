@@ -5,18 +5,18 @@ module.exports = {
     extend: {
       colors: {
         page: {
-          bg: '#fcfcfc',
-          surface: '#ffffff',
-          border: '#e2e8f0',
+          bg: '#0e0e10',
+          surface: '#1c1c21',
+          border: '#2a2a30',
         },
         accent: {
-          DEFAULT: '#1d4ed8',
-          hover: '#1e40af',
-          secondary: '#dc2626',
+          DEFAULT: '#00ff9f',
+          hover: '#00e08e',
+          secondary: '#00e0ff',
         },
         odoo: {
-          purple: '#1d4ed8',
-          light: '#2563eb',
+          purple: '#00ff9f',
+          light: '#00e0ff',
         },
       },
     },

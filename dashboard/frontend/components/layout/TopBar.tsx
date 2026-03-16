@@ -6,9 +6,9 @@ import type { SystemStats } from '@/types';
 function Metric({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
     <div className="flex items-center gap-2 text-[13px]">
-      <span className="text-[#64748b]">{label}</span>
-      <span className="text-[#1e293b] font-mono">{value}</span>
-      {detail && <span className="text-[#94a3b8] font-mono text-[12px]">{detail}</span>}
+      <span className="text-[#6a6a75]">{label}</span>
+      <span className="text-[#f0f0f0] font-mono">{value}</span>
+      {detail && <span className="text-[#4a4a55] font-mono text-[12px]">{detail}</span>}
     </div>
   );
 }
@@ -25,7 +25,7 @@ export default function TopBar() {
           <Metric label="Disk" value={`${Math.round(data.disk.percent)}%`} detail={`${data.disk.usedGB}/${data.disk.totalGB}G`} />
         </>
       ) : (
-        <span className="text-[13px] text-[#94a3b8]">Loading...</span>
+        <span className="text-[13px] text-[#4a4a55]">Loading...</span>
       )}
     </header>
   );
