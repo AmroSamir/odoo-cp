@@ -3,6 +3,7 @@
 const express = require('express');
 const router = express.Router();
 const setupService = require('../services/productionSetupService');
+const { shellExec } = require('../utils/shellExec');
 
 /**
  * GET /api/setup/status
@@ -45,6 +46,8 @@ router.post('/production', async (req, res) => {
 
   send({ type: 'start', message: `Deploying production Odoo on ${domain}...` });
 
+  let success = false;
+
   try {
     const result = await setupService.deployProduction({
       domain,
@@ -57,11 +60,13 @@ router.post('/production', async (req, res) => {
       },
     });
 
+    success = result.exitCode === 0;
+
     send({
       type: 'done',
-      success: result.exitCode === 0,
+      success,
       exitCode: result.exitCode,
-      message: result.exitCode === 0
+      message: success
         ? `Production deployed successfully at https://${domain}`
         : 'Production deployment failed. Check the logs above.',
     });
@@ -69,7 +74,20 @@ router.post('/production', async (req, res) => {
     send({ type: 'error', message: err.message });
   }
 
+  // End the SSE stream FIRST — the browser receives "done" cleanly
   res.end();
+
+  // THEN reload nginx to pick up the new production config + SSL cert.
+  // This happens after the SSE connection is closed, so it can't break it.
+  if (success) {
+    try {
+      await shellExec('docker', ['exec', 'nginx_odoo', 'nginx', '-s', 'reload']);
+      console.log('[setup] nginx reloaded with production config');
+    } catch (err) {
+      console.error('[setup] nginx reload failed:', err.message);
+      // Non-fatal — production Odoo is accessible via IP:8069, user can fix nginx later
+    }
+  }
 });
 
 module.exports = router;

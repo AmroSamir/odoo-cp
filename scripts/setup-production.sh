@@ -519,9 +519,8 @@ log "Updated .deploy-config with production domain"
 log "Building and starting production Odoo..."
 docker compose -f "$INSTALL_DIR/docker-compose.yml" --project-directory "$INSTALL_DIR" up -d --build web db
 
-# Reload nginx config without restarting — keeps existing connections alive
-log "Reloading nginx configuration..."
-docker exec nginx_odoo nginx -s reload
+# NOTE: nginx reload is handled by the dashboard backend AFTER the SSE stream ends.
+# Doing it here would kill the live log connection.
 
 # Wait for Odoo to start
 echo -n "Waiting for Odoo to start"
