@@ -4,19 +4,19 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        deep: {
-          bg: '#001e3c',
-          surface: '#0a2744',
-          border: '#133a5c',
+        arctic: {
+          bg: '#f0f9ff',
+          surface: '#f8fafc',
+          border: '#d0e4f0',
         },
         accent: {
-          DEFAULT: '#4fc3f7',
-          hover: '#29b6f6',
-          secondary: '#ffa726',
+          DEFAULT: '#0284c7',
+          hover: '#0369a1',
+          secondary: '#f43f5e',
         },
         odoo: {
-          purple: '#4fc3f7',
-          light: '#29b6f6',
+          purple: '#0284c7',
+          light: '#0ea5e9',
         },
       },
     },
