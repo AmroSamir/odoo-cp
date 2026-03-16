@@ -361,25 +361,24 @@ A single script that handles everything. It asks you for your domains and email 
 # 1. SSH into the server
 ssh root@YOUR_SERVER_IP
 
-# 2. Install Git and tmux
-apt update && apt install -y git tmux
+# 2. Clone the repo
+git clone https://github.com/AmroSamir/odoo-cp.git /opt/odoo-cp
+cd /opt/odoo-cp
 
-# 3. Use tmux to keep the session alive (important on mobile/Termux)
-tmux
+# 3. Run the setup script (fully interactive, ~15 min)
+bash setup-odoo.sh
 
-# 4. Clone the repo
-cd /opt
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO.git odoo19e-docker
-
-# 5. Run the script
-cd /opt/odoo19e-docker
-chmod +x setup-odoo.sh
-./setup-odoo.sh
-
-# If disconnected from tmux, reconnect with:
-ssh root@YOUR_SERVER_IP
-tmux attach
+# 4. Check everything started
+docker compose ps
 ```
+
+> **Tip:** If you're running from a mobile terminal (Termux), use `tmux` to keep the session alive:
+> ```bash
+> apt update && apt install -y tmux
+> tmux
+> # ... run the commands above ...
+> # If disconnected, reconnect with: tmux attach
+> ```
 
 ### What It Asks You
 

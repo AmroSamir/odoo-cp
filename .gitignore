@@ -34,6 +34,7 @@ staging/nginx/
 # Dashboard build artifacts & secrets
 dashboard/.env
 dashboard/frontend/.next/
+dashboard/frontend/out/
 dashboard/node_modules/
 dashboard/frontend/node_modules/
 
