@@ -103,6 +103,27 @@ else
   rm -rf /tmp/odoo-extract /tmp/odoo19e-docker.zip
 fi
 
+# Merge core Odoo modules into addons/ directory.
+# The Dropbox zip has Enterprise addons but may be missing core modules (base, web, etc.)
+# that Odoo needs to boot. We extract ALL core modules from the Docker image first,
+# then overlay Enterprise addons on top — so Enterprise versions win where they exist.
+if [ -d "$INSTALL_DIR/addons" ]; then
+  log "Ensuring core Odoo modules are present in addons/..."
+  docker pull odoo:19 > /dev/null 2>&1 || true
+
+  # Extract all core addons from the Docker image
+  rm -rf /tmp/odoo-core-addons
+  docker run --rm --user root -v /tmp/odoo-core-addons:/mnt/out odoo:19 \
+    sh -c "cp -r /usr/lib/python3/dist-packages/odoo/addons/* /mnt/out/ && cp -r /usr/lib/python3/dist-packages/addons/* /mnt/out/" 2>/dev/null || true
+
+  if [ -d "/tmp/odoo-core-addons" ]; then
+    # Copy core modules WITHOUT overwriting existing Enterprise addons
+    cp -rn /tmp/odoo-core-addons/* "$INSTALL_DIR/addons/" 2>/dev/null || true
+    rm -rf /tmp/odoo-core-addons
+    log "Core modules merged — $(ls "$INSTALL_DIR/addons" | wc -l) total modules"
+  fi
+fi
+
 mkdir -p "$INSTALL_DIR/extra-addons/custom"
 mkdir -p "$INSTALL_DIR/odoo-data"
 
@@ -153,14 +174,14 @@ services:
     ports:
       - "8069:8069"
       - "8072:8072"
-    command: ["--db-filter=.*", "--proxy-mode", "--addons-path=/mnt/enterprise-addons,/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons"]
+    command: ["--db-filter=.*", "--proxy-mode"]
     environment:
       - HOST=db
       - USER=odoo
       - PASSWORD=odoo
     volumes:
       - ${INSTALL_DIR}/extra-addons:/mnt/extra-addons
-      - ${INSTALL_DIR}/addons:/mnt/enterprise-addons:ro
+      - ${INSTALL_DIR}/addons:/usr/lib/python3/dist-packages/odoo/addons
       - ${INSTALL_DIR}/odoo-data:/var/lib/odoo
     restart: unless-stopped
     networks:
