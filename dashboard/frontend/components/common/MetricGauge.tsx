@@ -8,13 +8,13 @@ interface MetricGaugeProps {
 }
 
 export default function MetricGauge({ label, percent, unit = '%', detail }: MetricGaugeProps) {
-  const color = percent >= 85 ? 'text-red-400' : percent >= 70 ? 'text-yellow-400' : 'text-green-400';
+  const color = percent >= 85 ? 'text-red-500' : percent >= 70 ? 'text-amber-500' : 'text-emerald-500';
 
   return (
     <div className="flex items-center gap-2 text-[13px]">
-      <span className="text-zinc-500">{label}</span>
-      <span className={`font-mono ${color}`}>{Math.round(percent)}{unit}</span>
-      {detail && <span className="text-zinc-600 font-mono text-[12px]">{detail}</span>}
+      <span className="text-txt-muted">{label}</span>
+      <span className={`font-mono font-medium ${color}`}>{Math.round(percent)}{unit}</span>
+      {detail && <span className="text-txt-faint font-mono text-[12px]">{detail}</span>}
     </div>
   );
 }

@@ -31,42 +31,46 @@ export default function DeployDrawer({ open, title, logs, deploying, result, onC
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/60 z-40" onClick={handleClose} />
-      <div className="fixed top-0 right-0 h-full w-full max-w-2xl bg-[#0f1b2d] border-l border-[#1e3a52] z-50 flex flex-col ">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e3a52]">
+      <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40" onClick={handleClose} />
+      <div className="fixed top-0 right-0 h-full w-full max-w-2xl bg-[#0f1520] border-l border-[#1e2d3d] z-50 flex flex-col shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e2d3d] bg-[#111927]">
           <div className="flex items-center gap-3">
             {deploying && (
-              <svg className="w-4 h-4 text-[#0ea5e9] animate-spin" fill="none" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 text-accent animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
             )}
-            <span className="text-[13px] text-[#e2e8f0]">{title}</span>
-            {deploying && <span className="text-[11px] font-mono text-amber-400">running</span>}
-            {result && <span className={`text-[11px] font-mono ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.success ? 'done' : 'failed'}</span>}
-            <span className="text-[11px] font-mono text-[#6a6a75]">{formatTime(elapsed)}</span>
+            <span className="text-[14px] text-white font-medium">{title}</span>
+            {deploying && <span className="text-[11px] font-mono text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">running</span>}
+            {result && <span className={`text-[11px] font-mono px-2 py-0.5 rounded-full ${result.success ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'}`}>{result.success ? 'done' : 'failed'}</span>}
+            <span className="text-[11px] font-mono text-gray-500">{formatTime(elapsed)}</span>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={handleCopy} className="text-[12px] text-[#6a6a75] hover:text-[#e2e8f0] px-2 py-1 transition-colors duration-150">{copied ? 'Copied' : 'Copy log'}</button>
-            <button onClick={handleClose} className="text-[#6a6a75] hover:text-[#e2e8f0] text-[16px] px-1 transition-colors duration-150">x</button>
+            <button onClick={handleCopy} className="text-[12px] text-gray-500 hover:text-white px-2 py-1 rounded transition-colors duration-150">{copied ? 'Copied' : 'Copy log'}</button>
+            <button onClick={handleClose} className="text-gray-500 hover:text-white w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors duration-150">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
-        <div ref={logRef} className="flex-1 overflow-y-auto p-4 font-mono text-[12px] leading-relaxed text-green-300 bg-[#0a1220]">
-          {logs.length === 0 && <span className="text-[#3a5068]">Waiting for output...</span>}
+        <div ref={logRef} className="flex-1 overflow-y-auto p-5 font-mono text-[12px] leading-relaxed text-emerald-300 bg-[#0a1018]">
+          {logs.length === 0 && <span className="text-gray-600">Waiting for output...</span>}
           {logs.map((line, i) => <div key={i} className="whitespace-pre-wrap break-all">{line}</div>)}
         </div>
         {result && (
-          <div className={`px-4 py-3 border-t border-[#1e3a52] ${result.success ? 'bg-green-950/30' : 'bg-red-950/30'}`}>
+          <div className={`px-5 py-4 border-t border-[#1e2d3d] ${result.success ? 'bg-emerald-950/30' : 'bg-red-950/30'}`}>
             <div className="flex items-center justify-between">
-              <p className={`text-[13px] ${result.success ? 'text-green-400' : 'text-red-400'}`}>{result.message}</p>
-              <span className="text-[11px] font-mono text-[#6a6a75]">{formatTime(elapsed)}</span>
+              <p className={`text-[13px] font-medium ${result.success ? 'text-emerald-400' : 'text-red-400'}`}>{result.message}</p>
+              <span className="text-[11px] font-mono text-gray-500">{formatTime(elapsed)}</span>
             </div>
             {children}
           </div>
         )}
         {deploying && !result && (
-          <div className="px-4 py-3 border-t border-[#1e3a52] flex items-center gap-2 text-[12px] text-[#6a6a75]">
-            <svg className="w-3.5 h-3.5 text-[#0ea5e9] animate-spin" fill="none" viewBox="0 0 24 24">
+          <div className="px-5 py-4 border-t border-[#1e2d3d] flex items-center gap-2 text-[12px] text-gray-500">
+            <svg className="w-3.5 h-3.5 text-accent animate-spin" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>

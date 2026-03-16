@@ -22,20 +22,20 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
 
   return (
     <>
-      <div className="bg-page-surface border border-page-border rounded-md p-4">
-        <div className="flex items-start justify-between mb-3">
+      <div className="bg-page-surface border border-page-border rounded-xl p-5 shadow-card hover:shadow-card-hover transition-shadow duration-200">
+        <div className="flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[14px] text-[#f0f0f0] font-medium">{instance.name}</span>
-              {isProd && <span className="text-[11px] text-accent font-mono">prod</span>}
+              <span className="text-[15px] text-txt-primary font-semibold">{instance.name}</span>
+              {isProd && <span className="text-[11px] text-accent font-medium bg-accent-light px-2 py-0.5 rounded-full">prod</span>}
             </div>
-            <div className="text-[12px] text-[#6a6a75] mt-1 font-mono">
-              :{instance.port}{age !== null && <span className="ml-2">{age === 0 ? 'today' : `${age}d ago`}</span>}{instance.ttlDays && <span className="ml-2 text-amber-400">ttl {instance.ttlDays}d</span>}
+            <div className="text-[13px] text-txt-muted mt-1 font-mono">
+              :{instance.port}{age !== null && <span className="ml-2 text-txt-secondary">{age === 0 ? 'today' : `${age}d ago`}</span>}{instance.ttlDays && <span className="ml-2 text-amber-500">ttl {instance.ttlDays}d</span>}
             </div>
           </div>
           <StatusBadge status={instance.status} />
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           {!isProd && (isRunning ? <Btn onClick={() => action('stop')} disabled={loading}>Stop</Btn> : <Btn onClick={() => action('start')} disabled={loading}>Start</Btn>)}
           {isRunning && <Btn onClick={() => action('restart')} disabled={loading}>Restart</Btn>}
           <Btn onClick={() => setShowLogs(true)}>Logs</Btn>
@@ -51,7 +51,7 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
 function Btn({ children, onClick, disabled, danger }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className={`text-[12px] px-2 py-1 rounded border transition-colors duration-150 disabled:opacity-30 ${danger ? 'text-red-400 border-page-border hover:bg-red-950/30' : 'text-[#8a8a95] border-page-border hover:text-[#f0f0f0] hover:bg-page-bg'}`}>
+      className={`text-[12px] px-3 py-1.5 rounded-lg border font-medium transition-colors duration-150 disabled:opacity-30 ${danger ? 'text-red-500 border-red-200 hover:bg-red-50' : 'text-txt-secondary border-page-border hover:text-txt-primary hover:bg-page-bg'}`}>
       {children}
     </button>
   );
