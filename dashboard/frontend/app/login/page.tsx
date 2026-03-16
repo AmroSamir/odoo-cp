@@ -21,12 +21,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-page-bg">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center mx-auto mb-5">
-            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
-            </svg>
-          </div>
-          <h1 className="text-[20px] font-semibold text-txt-primary">Odoo Manager</h1>
+          <img src="/numo-dark-logo.png" alt="Numo" className="h-14 w-auto mx-auto mb-5" />
           <p className="text-[14px] text-txt-muted mt-1">Sign in to your dashboard</p>
         </div>
         <form onSubmit={handleSubmit} className="bg-page-surface border border-page-border rounded-2xl p-6 space-y-5 shadow-card">

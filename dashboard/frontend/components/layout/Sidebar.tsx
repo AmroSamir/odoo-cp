@@ -25,16 +25,8 @@ export default function Sidebar() {
     <aside className="fixed left-0 top-0 h-full w-[260px] bg-page-surface border-r border-page-border flex flex-col">
       {/* Logo */}
       <div className="px-6 py-5 border-b border-page-border">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
-            </svg>
-          </div>
-          <div>
-            <p className="text-[15px] font-semibold text-txt-primary">Odoo Manager</p>
-            <p className="text-[12px] text-txt-muted">Enterprise Platform</p>
-          </div>
+        <div className="flex items-center justify-center">
+          <img src="/numo-dark-logo.png" alt="Numo" className="h-10 w-auto" />
         </div>
       </div>
 

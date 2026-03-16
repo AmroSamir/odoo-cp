@@ -150,11 +150,11 @@ services:
     ports:
       - "8069:8069"
       - "8072:8072"
+    command: ["--db-filter=.*", "--proxy-mode"]
     environment:
       - HOST=db
       - USER=odoo
       - PASSWORD=odoo
-      - ODOO_PROXY_MODE=True
     volumes:
       - ${INSTALL_DIR}/extra-addons:/mnt/extra-addons
       - ${INSTALL_DIR}/addons:/usr/lib/python3/dist-packages/odoo/addons
@@ -468,8 +468,9 @@ git pull origin main
 echo "=== Backing up production database ==="
 mkdir -p ${BACKUP_DIR}
 docker exec db_odoo pg_dumpall -U odoo > ${BACKUP_DIR}/odoo-prod-\$(date +%Y%m%d-%H%M%S).sql
-echo "=== Rebuilding production ==="
-docker compose up -d --build web
+echo "=== Rebuilding production + dashboard ==="
+docker compose up -d --build web dashboard
+docker compose restart nginx
 echo "=== Production deployed at https://${DOMAIN_PROD} ==="
 DEPLOYPROD
 chmod +x "$INSTALL_DIR/scripts/deploy-prod.sh"
