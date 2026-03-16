@@ -354,7 +354,8 @@ get_ssl_cert() {
       --agree-tos \
       --no-eff-email \
       --non-interactive \
-      --keep-until-expiring 2>&1; then
+      --keep-until-expiring \
+      --staging 2>&1; then
       log "SSL cert for $domain obtained successfully!"
       return 0
     fi
