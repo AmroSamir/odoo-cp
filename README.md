@@ -1,361 +1,111 @@
-# Odoo 19 Enterprise — Deployment & Development Guide
+# Odoo 19 Enterprise — Self-Hosting Platform
+
+A complete self-hosting platform for **Odoo 19 Enterprise** with a web-based management dashboard, on-demand staging instances, automated SSL, backups, and CI/CD-ready workflow. Runs on a single VPS using Docker.
 
 > **Created by:** Amr Afifi — amro.sa.af@gmail.com
+
+---
+
+## How It Works
+
+```
+setup-odoo.sh                    Dashboard UI
+     │                                │
+     ▼                                ▼
+ Installs Docker              Deploy Production
+ Sets up Dashboard             Create Staging
+ Gets SSL cert                 Manage Backups
+ Creates config                Deploy Updates
+     │                          Monitor Server
+     ▼                          SSL Management
+ Dashboard ready                    │
+ at your domain                     ▼
+     └──────── Production Odoo deployed from dashboard ────────┘
+```
+
+1. **Run `setup-odoo.sh`** on a fresh VPS — it installs Docker, sets up the dashboard, and gets SSL
+2. **Open the dashboard** in your browser and deploy production Odoo from the Setup page
+3. **Manage everything** from the dashboard: instances, deployments, backups, SSL, and more
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                                                                     │
-│   Odoo 19 Enterprise  ─  Production + Staging Infrastructure       │
-│                                                                     │
-├──────────────────────┬──────────────────────────────────────────────┤
-│                      │                                              │
-│   DEVELOPER          │   VPS                                        │
-│                      │                                              │
-│   ┌──────────────┐   │   ┌──────────────────────────────────────┐  │
-│   │  Claude Code  │───┼──►│  Git Repo  (/opt/odoo19e-docker)    │  │
-│   │  (local dev)  │   │   └──────┬───────────────────────────────┘  │
-│   └──────┬───────┘   │          │ git pull                         │
-│          │ git push   │          ▼                                  │
-│          │            │   ┌──────────────────────────────────────┐  │
-│          │            │   │  deploy-staging.sh / deploy-prod.sh  │  │
-│          │            │   └──────┬──────────────┬────────────────┘  │
-│          │            │          │              │                   │
-│          │            │          ▼              ▼                   │
-│          │            │   ┌─────────────────────────────────────┐  │
-│          │            │   │          NGINX  (:80 → :443)        │  │
-│          │            │   │   SSL via Let's Encrypt             │  │
-│          │            │   └──────┬──────────────┬───────────────┘  │
-│          │            │          │              │                   │
-│          │            │          ▼              ▼                   │
-│          │            │                                            │
-│          │            │   ┏━━━━━━━━━━━━━━┓  ┏━━━━━━━━━━━━━━━━━━┓  │
-│          │            │   ┃  PRODUCTION  ┃  ┃     STAGING      ┃  │
-│          │            │   ┃              ┃  ┃                  ┃  │
-│          │            │   ┃  your-prod.  ┃  ┃  your-staging.   ┃  │
-│          │            │   ┃  domain.com  ┃  ┃  domain.com      ┃  │
-│          │            │   ┃ ┌──────────┐ ┃  ┃ ┌──────────────┐ ┃  │
-│          │            │   ┃ │ web_odoo │ ┃  ┃ │ web_odoo_    │ ┃  │
-│          │            │   ┃ │ :8069    │ ┃  ┃ │ staging      │ ┃  │
-│          │            │   ┃ │ :8072 ws │ ┃  ┃ │ :8169        │ ┃  │
-│          │            │   ┃ └────┬─────┘ ┃  ┃ │ :8172 ws     │ ┃  │
-│          │            │   ┃      │       ┃  ┃ └──────┬───────┘ ┃  │
-│          │            │   ┃      ▼       ┃  ┃        ▼         ┃  │
-│          │            │   ┃ ┌──────────┐ ┃  ┃ ┌──────────────┐ ┃  │
-│          │            │   ┃ │ db_odoo  │ ┃  ┃ │ db_odoo_     │ ┃  │
-│          │            │   ┃ │ PG 17    │ ┃  ┃ │ staging      │ ┃  │
-│          │            │   ┃ │ pgvector │ ┃  ┃ │ PG 17        │ ┃  │
-│          │            │   ┃ └──────────┘ ┃  ┃ └──────────────┘ ┃  │
-│          │            │   ┗━━━━━━━━━━━━━━┛  ┗━━━━━━━━━━━━━━━━━━┛  │
-│          │            │                                            │
-│          │            │   ┌─────────────────────────────────────┐  │
-│          │            │   │        SHARED VOLUMES               │  │
-│          │            │   │                                     │  │
-│          │            │   │  extra-addons/          (plugins)   │  │
-│          │            │   │  extra-addons/custom/   (your dev)  │  │
-│          │            │   │  addons/          (Community core)  │  │
-│          │            │   └─────────────────────────────────────┘  │
-│          │            │                                            │
-└──────────┴────────────┴────────────────────────────────────────────┘
-
- WORKFLOW:  code locally  →  git push  →  deploy staging  →  verify  →  deploy prod
+                         ┌─────────────────────────────────────────────┐
+                         │              VPS (Ubuntu 24.04)             │
+                         │                                             │
+  HTTPS :443             │   ┌──────────────────────────────────────┐  │
+ ────────────────────────┼──►│           NGINX (Alpine)             │  │
+                         │   │   SSL termination + reverse proxy    │  │
+                         │   └──────┬─────────────┬────────────────┘  │
+                         │          │             │                    │
+                         │          ▼             ▼                    │
+                         │   ┌────────────┐ ┌──────────────────────┐  │
+  dashboard.domain.com   │   │ DASHBOARD  │ │     PRODUCTION       │  │
+ ────────────────────────┼──►│ Express+   │ │                      │  │
+                         │   │ Next.js    │ │  Odoo 19 Enterprise  │  │
+                         │   │ :3000      │ │  :8069               │  │
+                         │   │            │ │         │             │  │
+                         │   │ Docker API │ │         ▼             │  │
+                         │   │     │      │ │  PostgreSQL 17        │  │
+                         │   └─────┼──────┘ │  (pgvector)          │  │
+                         │         │        └──────────────────────┘  │
+                         │         │                                   │
+                         │         ▼                                   │
+                         │   ┌──────────────────────────────────────┐  │
+                         │   │         STAGING INSTANCES            │  │
+                         │   │                                      │  │
+                         │   │  stg-test (:8171)  stg-demo (:8172) │  │
+                         │   │  Each with own DB + filestore        │  │
+                         │   │  Cloned from production data         │  │
+                         │   └──────────────────────────────────────┘  │
+                         └─────────────────────────────────────────────┘
 ```
 
-**Ports:**
+**Services:**
 
-| Environment | HTTPS | Direct |
-|---|---|---|
-| Production | `https://YOUR_PROD_DOMAIN` | `:8069` |
-| Staging | `https://YOUR_STAGING_DOMAIN` | `:8169` |
+| Service | Container | Port | Domain |
+|---------|-----------|------|--------|
+| Dashboard | `odoo_dashboard` | 3000 (internal) | `dashboard.your-domain.com` |
+| Production Odoo | `web_odoo` | 8069 | `erp.your-domain.com` |
+| Production DB | `db_odoo` | 5432 (internal) | — |
+| Nginx | `nginx_odoo` | 80, 443 | — |
+| Staging (per instance) | `stg-{name}_web` | 8171–8199 | optional SSL subdomain |
 
 ---
 
-## Repository Structure
+## Dashboard
 
-```
-odoo19e-docker/
-├── docker-compose.yml              # Production + Staging (single file)
-├── Dockerfile
-├── extra-addons/                   # Enterprise plugins + custom modules
-│   ├── odoo_unlimited/             # Enterprise activation module
-│   └── custom/                     # Your custom modules
-├── addons/                         # Community + Enterprise addons (from zip)
-├── odoo-data/                      # Production filestore (persistent)
-├── odoo-data-staging/              # Staging filestore (persistent)
-├── nginx/
-│   └── default.conf                # Reverse proxy + SSL config
-├── scripts/
-│   ├── deploy-prod.sh              # One-command production deploy
-│   ├── deploy-staging.sh           # One-command staging deploy
-│   ├── clone-prod-to-staging.sh    # Copy prod DB to staging
-│   └── backup.sh                   # Database backup
-├── .deploy-config                  # Generated config (domains, IP, email)
-├── .gitignore
-└── README.md
-```
+The web dashboard provides a visual interface for managing the entire platform.
+
+**Pages:**
+
+| Page | What it does |
+|------|-------------|
+| **Setup** | First-time production Odoo deployment with real-time log streaming |
+| **Instances** | View/create/start/stop/remove production and staging instances |
+| **Deploy** | One-click deploy to staging or production (with backup confirmation) |
+| **Backups** | View, create, and restore database backups |
+| **SSL** | Certificate status, expiry dates, one-click renewal |
+| **Git** | Current branch, recent commits, pull latest changes |
+
+**Tech stack:** Next.js 14 (static export) + Express.js backend + Tailwind CSS, served from a single Docker container.
+
+**API:** Full REST API at `/api/*` — instances, monitoring, backups, deploy, SSL, git, setup. JWT authentication with httpOnly cookies.
 
 ---
 
-## Source Files
-
-### Dockerfile
-
-```dockerfile
-FROM odoo:19
-
-USER root
-
-# Install system dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    wkhtmltopdf \
-    python3-google-auth \
-    python3-pip && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install Python libraries
-RUN pip3 install imgkit google-auth --break-system-packages
-
-USER odoo
-```
-
-### Docker Compose (Production + Staging — Single File)
-
-Staging services use Docker Compose **profiles**. By default only production starts. Add `--profile staging` to include staging. The setup script generates this file with your actual domains.
-
-```yaml
-# docker-compose.yml
-services:
-
-  # ============================================================
-  #  PRODUCTION  —  YOUR_PROD_DOMAIN
-  # ============================================================
-  web:
-    build: .
-    container_name: web_odoo
-    user: root
-    depends_on:
-      - db
-    ports:
-      - "8069:8069"
-      - "8072:8072"
-    environment:
-      - HOST=db
-      - USER=odoo
-      - PASSWORD=odoo
-      - ODOO_PROXY_MODE=True
-    volumes:
-      - /opt/odoo19e-docker/extra-addons:/mnt/extra-addons
-      - /opt/odoo19e-docker/addons:/usr/lib/python3/dist-packages/odoo/addons
-      - /opt/odoo19e-docker/odoo-data:/var/lib/odoo
-    restart: unless-stopped
-
-  db:
-    image: pgvector/pgvector:pg17
-    container_name: db_odoo
-    environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: odoo
-      POSTGRES_PASSWORD: odoo
-      PGDATA: /var/lib/postgresql/data/pgdata
-    volumes:
-      - /opt/odoo19e-docker/odoo-db-data:/var/lib/postgresql/data/pgdata
-    restart: unless-stopped
-
-  # ============================================================
-  #  STAGING  —  YOUR_STAGING_DOMAIN
-  # ============================================================
-  web-staging:
-    build: .
-    container_name: web_odoo_staging
-    user: root
-    depends_on:
-      - db-staging
-    ports:
-      - "8169:8069"
-      - "8172:8072"
-    environment:
-      - HOST=db-staging
-      - USER=odoo_staging
-      - PASSWORD=odoo_staging
-      - ODOO_PROXY_MODE=True
-    volumes:
-      - /opt/odoo19e-docker/extra-addons:/mnt/extra-addons
-      - /opt/odoo19e-docker/addons:/usr/lib/python3/dist-packages/odoo/addons
-      - /opt/odoo19e-docker/odoo-data-staging:/var/lib/odoo
-    restart: unless-stopped
-    profiles:
-      - staging
-
-  db-staging:
-    image: pgvector/pgvector:pg17
-    container_name: db_odoo_staging
-    environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: odoo_staging
-      POSTGRES_PASSWORD: odoo_staging
-      PGDATA: /var/lib/postgresql/data/pgdata
-    volumes:
-      - /opt/odoo19e-docker/odoo-db-data-staging:/var/lib/postgresql/data/pgdata
-    restart: unless-stopped
-    profiles:
-      - staging
-
-  # ============================================================
-  #  NGINX  —  Reverse Proxy + SSL
-  # ============================================================
-  nginx:
-    image: nginx:alpine
-    container_name: nginx_odoo
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /opt/odoo19e-docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/certbot:/var/www/certbot:ro
-    depends_on:
-      - web
-    restart: unless-stopped
-```
-
-### Nginx Configuration
-
-The setup script generates this with your actual domains. Below is the template:
-
-```nginx
-# nginx/default.conf
-
-# ── Redirect HTTP → HTTPS ──────────────────────────────────
-server {
-    listen 80;
-    server_name YOUR_PROD_DOMAIN YOUR_STAGING_DOMAIN;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-# ── Production ──────────────────────────────────────────────
-server {
-    listen 443 ssl;
-    server_name YOUR_PROD_DOMAIN;
-
-    ssl_certificate     /etc/letsencrypt/live/YOUR_PROD_DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/YOUR_PROD_DOMAIN/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-
-    access_log /var/log/nginx/odoo-access.log;
-    error_log /var/log/nginx/odoo-error.log;
-
-    client_max_body_size 200M;
-    proxy_read_timeout 720s;
-    proxy_connect_timeout 720s;
-    proxy_send_timeout 720s;
-
-    location / {
-        proxy_pass http://web:8069;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_redirect off;
-    }
-
-    location /websocket {
-        proxy_pass http://web:8069;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-    }
-
-    location ~* /web/static/ {
-        proxy_pass http://web:8069;
-        proxy_cache_valid 200 60m;
-        proxy_buffering on;
-        expires 24h;
-    }
-}
-
-# ── Staging ─────────────────────────────────────────────────
-server {
-    listen 443 ssl;
-    server_name YOUR_STAGING_DOMAIN;
-
-    ssl_certificate     /etc/letsencrypt/live/YOUR_STAGING_DOMAIN/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/YOUR_STAGING_DOMAIN/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-
-    client_max_body_size 200M;
-    proxy_read_timeout 720s;
-    proxy_connect_timeout 720s;
-    proxy_send_timeout 720s;
-
-    location / {
-        proxy_pass http://web-staging:8069;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_redirect off;
-    }
-
-    location /websocket {
-        proxy_pass http://web-staging:8069;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 86400;
-    }
-
-    location ~* /web/static/ {
-        proxy_pass http://web-staging:8069;
-        proxy_cache_valid 200 60m;
-        proxy_buffering on;
-        expires 24h;
-    }
-}
-```
-
----
-
----
-
-# Deployment Methods
-
-There are **two ways** to deploy. Choose one.
-
----
-
-## Method A — Automated Script (Recommended)
-
-A single script that handles everything. It asks you for your domains and email at the start, then runs fully automatically.
+## Quick Start
 
 ### Prerequisites
 
-- A fresh **VPS** running **Ubuntu 22.04 or 24.04**
-- **DNS records** pointed to the server IP (for SSL to work on first run):
-  - `YOUR_PROD_DOMAIN → A → YOUR_SERVER_IP`
-  - `YOUR_STAGING_DOMAIN → A → YOUR_SERVER_IP`
-- If DNS isn't ready, the script creates temporary self-signed certs — you fix SSL later
+- A **VPS** running **Ubuntu 22.04 or 24.04** (tested on Contabo)
+- **DNS records** pointed to the server:
+  - `dashboard.your-domain.com → A → YOUR_SERVER_IP`
+  - `erp.your-domain.com → A → YOUR_SERVER_IP` (can be added later)
 
-### How to Run
+### Installation
 
 ```bash
 # 1. SSH into the server
@@ -365,512 +115,431 @@ ssh root@YOUR_SERVER_IP
 git clone https://github.com/AmroSamir/odoo-cp.git /opt/odoo-cp
 cd /opt/odoo-cp
 
-# 3. Run the setup script (fully interactive, ~15 min)
+# 3. Run the setup script
 bash setup-odoo.sh
-
-# 4. Check everything started
-docker compose ps
 ```
 
-> **Tip:** If you're running from a mobile terminal (Termux), use `tmux` to keep the session alive:
+> **Tip:** Use `tmux` if running from a mobile terminal (Termux) to keep the session alive:
 > ```bash
-> apt update && apt install -y tmux
-> tmux
+> apt install -y tmux && tmux
 > # ... run the commands above ...
-> # If disconnected, reconnect with: tmux attach
+> # If disconnected: tmux attach
 > ```
 
-### What It Asks You
+### What the Script Asks
 
 ```
-Production domain (e.g. erp.example.com): 
-Staging domain [staging-erp.example.com]: 
-Email for SSL certificates (e.g. admin@example.com): 
+Dashboard domain (e.g. dashboard.erp.example.com):
+Email for SSL certificates (e.g. admin@example.com):
+Dashboard password: ********
 ```
 
-The staging domain defaults to `staging-` + your production domain. Press Enter to accept.
+That's it. No production domain needed yet — you deploy production from the dashboard.
 
-### What the Script Does (in order)
+### What the Script Does
 
-1. Installs system packages (git, curl, unzip, certbot, ufw, etc.)
-2. Installs Docker Engine + Compose from Docker's **official APT repository**
-3. Downloads `odoo19e-docker.zip` from Dropbox and extracts it
-4. Moves `odoo_unlimited` to the correct addons path (if found in the zip)
-5. Creates the `Dockerfile`, `docker-compose.yml`, and `nginx/default.conf` using your domains
-6. Generates SSL certificates via Let's Encrypt (or self-signed fallback)
-7. Creates deploy scripts (`deploy-prod.sh`, `deploy-staging.sh`, `backup.sh`, `clone-prod-to-staging.sh`)
-8. Initializes Git repository and configures firewall (SSH, HTTP, HTTPS only)
-9. Downloads `odoo_unlimited.zip` addon from Dropbox and installs it to `extra-addons/` (overwrites if exists)
-10. Builds and launches both production and staging containers
-11. Sets up cron jobs for SSL auto-renewal (3 AM) and daily DB backups (2 AM)
-12. Saves your configuration to `.deploy-config` for future reference
+1. Installs system packages (git, curl, certbot, ufw, etc.)
+2. Installs Docker Engine + Compose from Docker's official APT repository
+3. Creates `docker-compose.yml` with dashboard + nginx only (no Odoo yet)
+4. Creates nginx config for the dashboard domain
+5. Gets SSL certificate via Let's Encrypt (or self-signed fallback)
+6. Configures firewall (SSH, HTTP, HTTPS), Git, cron jobs
+7. Builds and starts the dashboard
 
-### After the Script Finishes
+### After Setup
 
-Follow the **Odoo Enterprise Activation** steps below.
+1. Open `https://dashboard.your-domain.com` and log in
+2. Go to **Setup** → enter your production domain → click **Deploy Production**
+3. The dashboard streams real-time logs as it:
+   - Downloads Odoo Enterprise addons (~900 MB)
+   - Downloads the `odoo_unlimited` activation addon
+   - Generates Docker config with Odoo services
+   - Gets SSL certificate for the production domain
+   - Starts Odoo containers
+4. Once deployed, go to `https://erp.your-domain.com` and:
+   - Create a database (**name MUST be lowercase**)
+   - Install `odoo_unlimited` addon (enables Enterprise activation)
+   - Install Accounting
+   - Register with any code (e.g. `abc123456`)
 
 ---
 
-## Method B — Manual Deployment (Step by Step)
-
-### Step 1: Prepare the Server
-
-```bash
-ssh root@YOUR_SERVER_IP
-
-apt update && apt upgrade -y
-apt install -y ca-certificates curl gnupg lsb-release git unzip sed certbot ufw dnsutils
-```
-
-### Step 2: Install Docker (Official Repository)
-
-```bash
-# Remove conflicting packages
-for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do
-  apt remove -y $pkg 2>/dev/null || true
-done
-
-# Add Docker GPG key
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-chmod a+r /etc/apt/keyrings/docker.asc
-
-# Add Docker repository
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo "${VERSION_CODENAME:-$UBUNTU_CODENAME}") stable" | \
-  tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# Install Docker
-apt update
-apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-systemctl enable docker && systemctl start docker
-
-# Verify
-docker --version
-docker compose version
-```
-
-### Step 3: Download Odoo from Dropbox
-
-```bash
-cd /opt
-
-wget "https://www.dropbox.com/scl/fi/rtt0vplxrao3elzk3fooz/odoo19e-docker.zip?rlkey=k1vwn8g2s1eao07kc6hqnyusp&st=29zgcif9&dl=1" -O odoo19e-docker.zip
-
-unzip odoo19e-docker.zip
-cd odoo19e-docker
-```
-
-### Step 4: Verify Folder Structure
-
-```bash
-ls /opt/odoo19e-docker/
-# Expected: addons/  extra-addons/  Dockerfile
-
-ls /opt/odoo19e-docker/addons/ | head -5
-# Expected: base, account, account_accountant, etc.
-```
-
-If `odoo_unlimited` is at the root level, move it:
-
-```bash
-mkdir -p /opt/odoo19e-docker/extra-addons
-mv /opt/odoo19e-docker/odoo_unlimited /opt/odoo19e-docker/extra-addons/odoo_unlimited
-```
-
-Create a directory for custom modules:
-
-```bash
-mkdir -p /opt/odoo19e-docker/extra-addons/custom
-```
-
-### Step 5: Create Configuration Files
-
-Create the `Dockerfile`, `docker-compose.yml`, and `nginx/default.conf` using the contents from the **Source Files** section above. Replace all `YOUR_PROD_DOMAIN` and `YOUR_STAGING_DOMAIN` placeholders with your actual domains.
-
-```bash
-nano /opt/odoo19e-docker/Dockerfile
-nano /opt/odoo19e-docker/docker-compose.yml
-mkdir -p /opt/odoo19e-docker/nginx
-nano /opt/odoo19e-docker/nginx/default.conf
-```
-
-### Step 6: Set Up DNS
-
-Point both domains to your server IP:
+## Project Structure
 
 ```
-YOUR_PROD_DOMAIN      →  A  →  YOUR_SERVER_IP
-YOUR_STAGING_DOMAIN   →  A  →  YOUR_SERVER_IP
+odoo-cp/
+├── setup-odoo.sh                          # Initial setup (dashboard only)
+├── Dockerfile                             # Odoo 19 custom image
+├── docker-compose.yml                     # Generated by setup scripts
+├── CLAUDE.md                              # AI assistant instructions
+├── README.md
+├── .deploy-config                         # Generated config (domains, IP, email)
+├── .env                                   # Dashboard credentials (not in Git)
+│
+├── dashboard/                             # Web management dashboard
+│   ├── Dockerfile                         # Multi-stage: frontend build + backend
+│   ├── package.json                       # Backend dependencies
+│   ├── backend/
+│   │   ├── server.js                      # Express entry point (:3000)
+│   │   ├── config/index.js                # Environment config
+│   │   ├── middleware/
+│   │   │   ├── auth.js                    # JWT authentication
+│   │   │   └── errorHandler.js            # Global error handling
+│   │   ├── routes/
+│   │   │   ├── index.js                   # Route registry
+│   │   │   ├── auth.js                    # Login/logout
+│   │   │   ├── setup.js                   # Production setup (SSE)
+│   │   │   ├── instances.js               # Instance CRUD
+│   │   │   ├── deploy.js                  # Deploy to staging/production
+│   │   │   ├── backups.js                 # Backup management
+│   │   │   ├── monitoring.js              # System stats
+│   │   │   ├── ssl.js                     # Certificate management
+│   │   │   └── git.js                     # Git operations
+│   │   ├── services/
+│   │   │   ├── productionSetupService.js  # First-time Odoo deployment
+│   │   │   ├── stagingService.js          # Staging instance lifecycle
+│   │   │   ├── dockerService.js           # Docker API interactions
+│   │   │   ├── deployService.js           # Deploy orchestration
+│   │   │   ├── backupService.js           # Backup operations
+│   │   │   ├── monitoringService.js       # CPU/RAM/disk metrics
+│   │   │   ├── sslService.js              # SSL cert management
+│   │   │   └── gitService.js              # Git operations
+│   │   └── utils/
+│   │       ├── deployConfig.js            # Read/write .deploy-config
+│   │       └── shellExec.js               # Shell command execution
+│   └── frontend/                          # Next.js 14 (static export)
+│       ├── package.json
+│       ├── app/                           # Pages (App Router)
+│       │   ├── setup/page.tsx             # Production deploy wizard
+│       │   ├── instances/page.tsx         # Instance management
+│       │   ├── deploy/page.tsx            # Deploy controls + history
+│       │   ├── backups/page.tsx           # Backup management
+│       │   ├── ssl/page.tsx               # SSL certificates
+│       │   ├── git/page.tsx               # Git status
+│       │   └── login/page.tsx             # Authentication
+│       ├── components/
+│       │   ├── layout/                    # Sidebar, TopBar
+│       │   ├── instances/                 # InstanceCard, CreateInstanceModal
+│       │   └── common/                    # ConfirmModal, MetricGauge, etc.
+│       ├── lib/                           # api.ts, useSSE.ts, usePolling.ts
+│       └── types/index.ts                # TypeScript interfaces
+│
+├── scripts/
+│   ├── setup-production.sh                # Deploy production Odoo (called from dashboard)
+│   ├── staging-manager.sh                 # On-demand staging instances
+│   ├── deploy-prod.sh                     # Update production (generated)
+│   ├── deploy-staging.sh                  # Update staging (generated)
+│   ├── backup.sh                          # Database backup (generated)
+│   ├── ttl-cleanup.sh                     # Auto-remove expired staging instances
+│   └── lib/                               # Shell helper libraries
+│       ├── common.sh
+│       ├── docker-helpers.sh
+│       └── nginx-helpers.sh
+│
+├── nginx/
+│   └── default.conf                       # Generated nginx config
+│
+├── extra-addons/
+│   ├── odoo_unlimited/                    # Enterprise activation (downloaded)
+│   └── custom/                            # Your custom Odoo modules
+│
+├── addons/                                # Odoo Enterprise addons (downloaded, ~900 MB)
+├── odoo-data/                             # Production filestore
+├── odoo-db-data/                          # Production PostgreSQL data
+└── staging/                               # Staging instances
+    ├── stg-{name}/                        # Per-instance directory
+    │   ├── docker-compose.yml
+    │   ├── config/odoo.conf
+    │   ├── data/                          # DB + filestore
+    │   └── manage.sh                      # Start/stop/remove
+    ├── nginx/                             # SSL configs for staging subdomains
+    └── .registry                          # Instance registry (JSON)
 ```
 
-### Step 7: Generate SSL Certificates
+**What's tracked in Git:** `setup-odoo.sh`, `Dockerfile`, `dashboard/`, `scripts/`, `nginx/`, `extra-addons/custom/`, `CLAUDE.md`, `README.md`
 
-```bash
-mkdir -p /var/www/certbot
-docker compose down 2>/dev/null || true
-
-certbot certonly --standalone \
-  -d YOUR_PROD_DOMAIN \
-  --email YOUR_EMAIL \
-  --agree-tos --no-eff-email
-
-certbot certonly --standalone \
-  -d YOUR_STAGING_DOMAIN \
-  --email YOUR_EMAIL \
-  --agree-tos --no-eff-email
-
-# Auto-renewal cron
-echo "0 3 * * * certbot renew --quiet --pre-hook 'docker stop nginx_odoo' --post-hook 'docker start nginx_odoo'" | crontab -
-```
-
-### Step 8: Download odoo_unlimited Enterprise Addon
-
-```bash
-cd /opt/odoo19e-docker
-
-# Download and extract (overwrites existing if present)
-rm -rf extra-addons/odoo_unlimited
-wget "https://www.dropbox.com/scl/fi/8f9l9h2w1z8r6qkzefc97/odoo_unlimited.zip?rlkey=a4j5kpiktxc06827tzelj5j4r&st=ju8fh4oi&dl=1" -O /tmp/odoo_unlimited.zip
-unzip -o /tmp/odoo_unlimited.zip -d extra-addons/
-rm -f /tmp/odoo_unlimited.zip
-
-# Verify
-ls extra-addons/odoo_unlimited/
-```
-
-### Step 9: Launch Odoo
-
-```bash
-cd /opt/odoo19e-docker
-
-docker compose up -d --build                     # Production
-docker compose --profile staging up -d --build    # Staging
-```
-
-### Step 10: Set Up Firewall
-
-```bash
-ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp
-ufw --force enable
-```
-
-### Step 11: Initialize Git Repository
-
-```bash
-cd /opt/odoo19e-docker
-
-cat > .gitignore << 'EOF'
-.env
-.deploy-config
-odoo-db-data/
-odoo-db-data-staging/
-odoo-data/
-odoo-data-staging/
-*.pyc
-__pycache__/
-backups/
-*.sql
-*.zip
-EOF
-
-git init
-git add .
-git commit -m "initial: Odoo 19 Enterprise setup"
-git remote add origin YOUR_GIT_REPO_URL
-git push -u origin main
-```
+**What's NOT in Git:** `addons/` (~900 MB), `odoo-data/`, `odoo-db-data/`, `staging/stg-*/`, `.env`, `.deploy-config`, `*.sql`, `*.zip`
 
 ---
 
----
+## Staging Instances
 
-# Odoo Enterprise Activation
+On-demand staging environments that clone production data. Each instance is fully isolated with its own Docker containers, database, filestore, and port.
 
-After deployment (both methods), complete these steps through the Odoo web UI. Do this for **both** production and staging.
+### From the Dashboard
 
-### Step 1: Create a Database
+Click **"+ New Staging Instance"** on the Instances page. Configure name, TTL, and SSL.
 
-Open `https://YOUR_PROD_DOMAIN/web/database/create` (or `http://YOUR_SERVER_IP:8069`)
+### From the CLI
 
-| Field | Value |
-|---|---|
-| Master Password | Choose a strong one — **save it!** |
-| Database Name | **Must be lowercase!** e.g. `my-production` |
-| Email | Your admin email |
-| Password | Your admin login password |
-| Language | Your preferred language |
-| Country | Your country |
-| Demo Data | Unchecked |
+```bash
+# Create a new staging instance (clones production DB + filestore)
+bash scripts/staging-manager.sh create --name "test-invoice" --port 8171
 
-> **⚠️ CRITICAL: Database names must be lowercase.**
-> Using uppercase letters (e.g. `My-Production`) causes the error:
-> `Database creation error: 'NoneType' object has no attribute 'uid'`
-> Always use lowercase: `my-production`, `my-staging`.
+# Create with auto-expiry and SSL
+bash scripts/staging-manager.sh create --name "demo" --ttl 7 --with-ssl
 
-### Step 2: Install `odoo_unlimited`
+# List all instances
+bash scripts/staging-manager.sh list
 
-The `odoo_unlimited` addon is already downloaded to `extra-addons/` by the setup script. You just need to install it in Odoo.
+# Start/stop/restart
+bash scripts/staging-manager.sh stop --name "test-invoice"
+bash scripts/staging-manager.sh start --name "test-invoice"
 
-1. Go to **Settings** → Enable **Developer Mode** (bottom of the page)
-2. Go to **Apps** → Click **Update Apps List** → Confirm
-3. Search for `unlimited`
-4. If `odoo_unlimited` appears → Install it
-5. If it does NOT appear → upload it manually via **Apps** → **Upload Module**
+# View logs
+bash scripts/staging-manager.sh logs --name "test-invoice" --follow
 
-The "Activate" button for Enterprise **will appear after** installing `odoo_unlimited`.
+# Remove a single instance
+bash scripts/staging-manager.sh remove --name "test-invoice"
 
-### Step 3: Activate Enterprise Modules
+# Remove all staging instances
+bash scripts/staging-manager.sh remove-all
+```
 
-1. Go to **Apps** → Install **Accounting** (do this one first!)
-2. If you get this error:
-   > `Invalid Operation: Odoo is currently processing another module operation.`
-   
-   **Fix:** Restart Odoo, then retry:
-   ```bash
-   docker compose restart web          # for production
-   # or
-   docker compose --profile staging restart web-staging   # for staging
-   ```
-   Wait 30 seconds, then go back and install Accounting again.
-3. Install any other Enterprise modules you need
-
-### Step 4: Register
-
-1. Return to the main menu
-2. Click **Register**
-3. Enter any code — e.g. `abc123456`
-
-**Enterprise is now activated.**
-
-### Repeat for Staging
-
-Do Steps 1–4 for staging at `https://YOUR_STAGING_DOMAIN` (or `http://YOUR_SERVER_IP:8169`), using a different database name like `my-staging`.
+**Each staging instance gets:**
+- Its own `docker-compose.yml` in `staging/stg-{name}/`
+- Its own PostgreSQL container with cloned production data
+- Its own Odoo container on a unique port (8171–8199)
+- Its own filestore copied from production
+- A `manage.sh` script for lifecycle management
+- Optional SSL subdomain (`{name}.staging.erp.your-domain.com`)
+- Optional TTL (auto-deleted after N days via cron)
 
 ---
 
----
+## Development Workflow
 
-# Day-to-Day Development with Claude Code
+### Custom Odoo Modules
 
-### Making Changes
+All custom modules go in `extra-addons/custom/`. Standard Odoo 19 module structure:
 
-```bash
-# Edit custom modules locally
-# Example: extra-addons/custom/my_module/__manifest__.py
-
-git add .
-git commit -m "feat: add custom module"
-git push origin main
+```
+extra-addons/custom/my_module/
+├── __init__.py
+├── __manifest__.py
+├── models/
+├── views/
+├── security/
+│   └── ir.model.access.csv
+└── static/                    # Optional: JS, CSS, images
 ```
 
-### Deploy to Staging First (Always)
+### Deploy Cycle
 
-```bash
-ssh root@YOUR_SERVER_IP "bash /opt/odoo19e-docker/scripts/deploy-staging.sh"
+```
+Write code locally → git push → Deploy from dashboard (or CLI) → Test on staging → Promote to production
 ```
 
-Test at `https://YOUR_STAGING_DOMAIN` — verify everything works.
+**From the dashboard:**
+- **Deploy** page → click "Deploy to Staging" or "Deploy to Production"
+- Production deploys auto-backup the database first
 
-### Promote to Production
-
+**From the CLI:**
 ```bash
-ssh root@YOUR_SERVER_IP "bash /opt/odoo19e-docker/scripts/deploy-prod.sh"
+# Deploy to staging
+ssh root@SERVER_IP "bash /opt/odoo-cp/scripts/deploy-staging.sh"
+
+# Deploy to production (auto-backs up DB first)
+ssh root@SERVER_IP "bash /opt/odoo-cp/scripts/deploy-prod.sh"
 ```
 
-This automatically backs up the production database before deploying.
-
-### Deploy Scripts Reference
-
-**`scripts/deploy-staging.sh`** — pulls latest code, rebuilds staging:
-
-```bash
-#!/bin/bash
-set -e
-cd /opt/odoo19e-docker
-git pull origin main
-docker compose --profile staging up -d --build web-staging
-```
-
-**`scripts/deploy-prod.sh`** — pulls code, backs up DB, rebuilds production:
-
-```bash
-#!/bin/bash
-set -e
-cd /opt/odoo19e-docker
-git pull origin main
-docker exec db_odoo pg_dumpall -U odoo > /opt/backups/odoo-prod-$(date +%Y%m%d-%H%M%S).sql
-docker compose up -d --build web
-```
-
-**`scripts/clone-prod-to-staging.sh`** — copies production DB to staging for testing with real data. Interactive — asks for database names.
-
-**`scripts/backup.sh`** — manual or cron-triggered backup. Auto-deletes backups older than 30 days.
+After deploying: Odoo → Apps → Update Apps List → Install/Upgrade your module.
 
 ---
 
+## API Reference
+
+All endpoints are under `/api/`. Authentication via JWT (httpOnly cookie). Public endpoints: `/api/auth/login`, `/api/health`, `/api/setup/status`.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/auth/login` | Login with admin password |
+| `POST` | `/auth/logout` | Clear session |
+| `GET` | `/setup/status` | Check if production is deployed (public) |
+| `POST` | `/setup/production` | Deploy production Odoo (SSE stream) |
+| `GET` | `/instances` | List all instances |
+| `POST` | `/instances` | Create staging instance |
+| `DELETE` | `/instances/:name` | Remove instance |
+| `POST` | `/instances/:name/start` | Start instance |
+| `POST` | `/instances/:name/stop` | Stop instance |
+| `POST` | `/instances/:name/restart` | Restart instance |
+| `GET` | `/instances/:name/logs` | Stream instance logs (SSE) |
+| `GET` | `/monitoring/system` | CPU, RAM, disk stats |
+| `GET` | `/monitoring/containers` | Per-container resource usage |
+| `GET` | `/backups` | List all backups |
+| `POST` | `/backups` | Create manual backup |
+| `POST` | `/backups/:id/restore` | Restore from backup |
+| `DELETE` | `/backups/:id` | Delete backup |
+| `POST` | `/deploy/staging` | Deploy to staging (SSE) |
+| `POST` | `/deploy/production` | Deploy to production (SSE) |
+| `GET` | `/deploy/history` | Deployment history |
+| `GET` | `/ssl/status` | Certificate status |
+| `POST` | `/ssl/renew` | Renew certificates |
+| `GET` | `/git/status` | Branch, commits, dirty state |
+| `POST` | `/git/pull` | Pull latest changes |
+
 ---
 
-# Useful Commands
+## Useful Commands
 
 ### Production
 
 ```bash
-docker compose up -d                  # Start
-docker compose down                   # Stop
-docker logs -f web_odoo               # Logs
-docker compose restart web            # Restart (no rebuild)
-docker compose up -d --build web      # Rebuild
-```
-
-### Staging
-
-```bash
-docker compose --profile staging up -d                      # Start
-docker compose --profile staging stop web-staging db-staging # Stop
-docker logs -f web_odoo_staging                              # Logs
-docker compose --profile staging up -d --build web-staging   # Rebuild
-```
-
-### Both
-
-```bash
-docker compose --profile staging up -d          # Start all
-docker compose --profile staging down           # Stop all
-docker compose --profile staging up -d --build  # Rebuild all
+docker compose up -d                     # Start all services
+docker compose down                      # Stop all services
+docker compose restart web               # Restart Odoo only
+docker compose up -d --build web         # Rebuild Odoo
+docker logs -f web_odoo                  # View Odoo logs
+docker logs -f nginx_odoo               # View Nginx logs
+docker logs -f odoo_dashboard            # View dashboard logs
 ```
 
 ### Database
 
 ```bash
-docker exec db_odoo pg_dumpall -U odoo > backup.sql                     # Backup
-docker exec -it db_odoo psql -U odoo -d YOUR_DB_NAME                    # Shell (prod)
-docker exec -it db_odoo_staging psql -U odoo_staging -d YOUR_DB_NAME    # Shell (staging)
+# Backup
+docker exec db_odoo pg_dumpall -U odoo > backup.sql
+
+# Connect to PostgreSQL shell
+docker exec -it db_odoo psql -U odoo -d YOUR_DB_NAME
+
+# List databases
+docker exec db_odoo psql -U odoo -l
 ```
 
 ### SSL
 
 ```bash
-# Fix SSL after DNS is pointed (replace self-signed with real certs)
-docker compose --profile staging down
-rm -rf /etc/letsencrypt/live/YOUR_PROD_DOMAIN
-rm -rf /etc/letsencrypt/live/YOUR_STAGING_DOMAIN
-rm -rf /etc/letsencrypt/renewal/YOUR_PROD_DOMAIN.conf
-rm -rf /etc/letsencrypt/renewal/YOUR_STAGING_DOMAIN.conf
-certbot certonly --standalone -d YOUR_PROD_DOMAIN --email YOUR_EMAIL --agree-tos --no-eff-email
-certbot certonly --standalone -d YOUR_STAGING_DOMAIN --email YOUR_EMAIL --agree-tos --no-eff-email
-docker compose --profile staging up -d
+# Renew all certificates
+docker stop nginx_odoo
+certbot renew
+docker start nginx_odoo
 
-# Manual renewal
-certbot renew && docker restart nginx_odoo
+# Get a new certificate manually
+docker compose down
+certbot certonly --standalone -d your-domain.com --email your@email.com --agree-tos --no-eff-email
+docker compose up -d
 ```
 
----
+### Dashboard
 
----
-
-# Known Issues & Fixes
-
-### 1. `'NoneType' object has no attribute 'uid'` during database creation
-
-**Cause:** Database name contains uppercase letters.
-**Fix:** Always use **lowercase** names. Use `my-prod` not `My-Prod`.
-
-### 2. "Activate" button not appearing
-
-**Cause:** `odoo_unlimited` module not installed yet.
-**Fix:** Developer Mode → Apps → Update Apps List → Search "unlimited" → Install. If it doesn't appear, upload manually.
-
-### 3. `Invalid Operation: currently processing another module operation`
-
-**Cause:** Installing modules too quickly after Enterprise activation.
-**Fix:** Restart Odoo and retry:
 ```bash
-docker compose restart web
+# Rebuild dashboard after code changes
+docker compose up -d --build dashboard
+
+# View dashboard environment
+docker exec odoo_dashboard env | grep -E "PROJECT_ROOT|NODE_ENV"
 ```
 
-### 4. SSL shows "Not Secure"
+---
+
+## Odoo Enterprise Activation
+
+After deploying production from the dashboard:
+
+1. Go to `https://erp.your-domain.com` → Create database (**must be lowercase name**)
+2. **Settings** → Enable **Developer Mode**
+3. **Apps** → **Update Apps List**
+4. Search `unlimited` → Install **odoo_unlimited** (the "Activate" button appears after this)
+5. Install **Accounting** module
+   - If you get "currently processing another module operation": `docker compose restart web`, wait 30s, retry
+6. Main menu → **Register** → Enter any code (e.g. `abc123456`)
+
+---
+
+## Known Issues & Fixes
+
+### Database name must be lowercase
+
+**Error:** `'NoneType' object has no attribute 'uid'` during database creation
+**Fix:** Use `my-prod`, never `My-Prod`. This is a hard Odoo 19 requirement.
+
+### "Activate" button not appearing
+
+**Cause:** `odoo_unlimited` not installed yet.
+**Fix:** Developer Mode → Apps → Update Apps List → Search "unlimited" → Install.
+
+### "Currently processing another module operation"
+
+**Fix:** `docker compose restart web` — wait 30 seconds, then retry the install.
+
+### SSL shows "Not Secure"
 
 **Cause:** DNS wasn't pointed when setup ran; self-signed certs were created.
-**Fix:** See SSL commands above — remove self-signed certs, run certbot, restart.
-
-### 5. `docker-compose-plugin` package not found
-
-**Cause:** Docker installed from Ubuntu default repos instead of Docker's official repo.
-**Fix:** Use the automated script (handles this), or follow Step 2 in Manual Deployment.
-
-### 6. Broken CSS/JS — unstyled login page or blank white page after login
-
-**Cause:** Odoo's filestore (`/var/lib/odoo`) is not mounted as a persistent volume. When the container restarts, compiled CSS/JS assets are lost and Odoo can't serve them.
-**Fix:** Add a filestore volume to both `web` and `web-staging` services in `docker-compose.yml`:
-```yaml
-volumes:
-  - /opt/odoo19e-docker/odoo-data:/var/lib/odoo        # for production
-  - /opt/odoo19e-docker/odoo-data-staging:/var/lib/odoo # for staging
+**Fix:** Point DNS, then from the dashboard SSL page click Renew, or manually:
+```bash
+docker compose down
+rm -rf /etc/letsencrypt/live/your-domain.com /etc/letsencrypt/renewal/your-domain.com.conf
+certbot certonly --standalone -d your-domain.com --email your@email.com --agree-tos --no-eff-email
+docker compose up -d
 ```
-Then rebuild: `docker compose --profile staging up -d --build`
 
-If assets are already corrupted, clear them and restart:
+### Broken CSS/JS — unstyled pages
+
+**Cause:** Filestore volume (`/var/lib/odoo`) not mounted.
+**Fix:** The `setup-production.sh` script handles this automatically. If assets are corrupted:
 ```bash
 docker exec -it db_odoo psql -U odoo -d YOUR_DB_NAME -c \
   "DELETE FROM ir_attachment WHERE mimetype IN ('application/javascript', 'text/css') AND url LIKE '/web/assets/%';"
 docker compose restart web
 ```
 
-### 7. Real-time chat/notifications not working (Discuss messages delayed)
+### Real-time chat not working
 
-**Cause:** Nginx websocket proxy pointing to port `8072`. In Odoo 19, the websocket is served on port `8069` (same as the web server), not on a separate gevent port.
-**Fix:** In `nginx/default.conf`, change the websocket `proxy_pass` from `8072` to `8069`:
-```nginx
-location /websocket {
-    proxy_pass http://web:8069;       # NOT 8072
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "Upgrade";
-    proxy_read_timeout 86400;
-}
-```
-Then restart Nginx: `docker restart nginx_odoo`
+**Cause:** Websocket misconfigured.
+**Note:** In Odoo 19, websocket runs on port **8069** (same as web), not 8072. The generated nginx config handles this correctly.
+
+### `docker-compose-plugin` not found
+
+**Cause:** Docker installed from Ubuntu's default repos.
+**Fix:** The setup script installs from Docker's official APT repository. If running manually, follow [Docker's install guide](https://docs.docker.com/engine/install/ubuntu/).
 
 ---
 
----
-
-# Automated Maintenance
+## Automated Maintenance
 
 | Schedule | Task | Details |
-|---|---|---|
-| Daily 2:00 AM | Database backup | `/opt/backups/`, auto-deletes after 30 days |
-| Daily 3:00 AM | SSL renewal | Checks and renews if needed |
+|----------|------|---------|
+| Daily 2:00 AM | Database backup | Saves to `/opt/backups/`, auto-deletes after 30 days |
+| Daily 3:00 AM | SSL renewal | Checks and renews via certbot |
+| Configurable | Staging TTL cleanup | Removes expired staging instances |
 
 ---
 
-# Security Notes
+## Configuration
 
-- Change default database passwords (`odoo`/`odoo`) in production
-- The Master DB password is required for all database operations — **save it securely**
-- Restrict staging access by IP if needed (Nginx `allow`/`deny`)
-- Never commit `.env` files, database dumps, or zip files to Git
-- Your domains, email, and server IP are saved in `.deploy-config` (excluded from Git)
+All configuration is stored in `.deploy-config` (excluded from Git):
+
+```bash
+DOMAIN_PROD=erp.your-domain.com          # Set when production is deployed from dashboard
+DOMAIN_STAGING=staging.erp.your-domain.com
+DOMAIN_DASHBOARD=dashboard.erp.your-domain.com
+SSL_EMAIL=admin@your-domain.com
+SERVER_IP=203.0.113.1
+INSTALL_DIR=/opt/odoo-cp
+BACKUP_DIR=/opt/backups
+```
+
+Dashboard credentials are in `.env`:
+
+```bash
+DASHBOARD_SECRET=<random-hex>            # JWT signing key
+DASHBOARD_ADMIN_PASSWORD=<your-password> # Login password
+```
 
 ---
 
+## Security Notes
+
+- Change default PostgreSQL passwords (`odoo`/`odoo`) in production
+- The Odoo Master DB password is required for database operations — save it securely
+- Dashboard credentials are in `.env` (never committed to Git)
+- The Docker socket is mounted read-only in the dashboard container
+- Firewall only allows SSH (22), HTTP (80), HTTPS (443)
+- All dashboard API routes require JWT authentication except login and setup status
+
 ---
 
-# Quick Reference
+## License
 
-| Action | Command |
-|---|---|
-| Start production | `docker compose up -d` |
-| Start all | `docker compose --profile staging up -d` |
-| Deploy staging | `ssh root@IP "bash /opt/odoo19e-docker/scripts/deploy-staging.sh"` |
-| Deploy production | `ssh root@IP "bash /opt/odoo19e-docker/scripts/deploy-prod.sh"` |
-| Clone prod → staging | `bash /opt/odoo19e-docker/scripts/clone-prod-to-staging.sh` |
-| Backup prod DB | `docker exec db_odoo pg_dumpall -U odoo > backup.sql` |
-| Restart prod Odoo | `docker compose restart web` |
-| Restart staging Odoo | `docker compose --profile staging restart web-staging` |
-| Renew SSL | `certbot renew && docker restart nginx_odoo` |
-| Prod logs | `docker logs -f web_odoo` |
-| Staging logs | `docker logs -f web_odoo_staging` |
-| View saved config | `cat /opt/odoo19e-docker/.deploy-config` |
+LGPL-3
