@@ -51,57 +51,34 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
 
   return (
     <>
-      <div className={`bg-surface border rounded-xl p-5 flex flex-col gap-4 card-hover ${
-        isProd ? 'border-accent/30' : 'border-subtle'
-      }`}>
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="min-w-0">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-md p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-white text-sm truncate">{instance.name}</span>
-              {isProd && (
-                <span className="text-[10px] font-mono font-semibold bg-accent/15 text-accent-glow border border-accent/20 px-1.5 py-0.5 rounded-md tracking-wider">
-                  PROD
-                </span>
-              )}
+              <span className="text-[14px] text-white font-medium">{instance.name}</span>
+              {isProd && <span className="text-[11px] text-accent font-mono">prod</span>}
             </div>
-            <div className="flex items-center gap-3 mt-1.5">
-              <span className="text-[11px] font-mono text-gray-500">:{instance.port}</span>
-              {createdAgo !== null && (
-                <span className="text-[11px] text-gray-600">
-                  {createdAgo === 0 ? 'today' : `${createdAgo}d ago`}
-                </span>
-              )}
-              {instance.ttlDays && (
-                <span className="text-[10px] font-mono text-yellow-500/70">TTL {instance.ttlDays}d</span>
-              )}
+            <div className="text-[12px] text-zinc-500 mt-1 font-mono">
+              :{instance.port}
+              {createdAgo !== null && <span className="ml-2">{createdAgo === 0 ? 'today' : `${createdAgo}d ago`}</span>}
+              {instance.ttlDays && <span className="ml-2 text-yellow-500">ttl {instance.ttlDays}d</span>}
             </div>
           </div>
           <StatusBadge status={instance.status} />
         </div>
 
-        {/* Actions */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex gap-1.5">
           {!isProd && (
-            <>
-              {isRunning ? (
-                <ActionBtn onClick={() => action('stop')} disabled={loading} variant="yellow">Stop</ActionBtn>
-              ) : (
-                <ActionBtn onClick={() => action('start')} disabled={loading} variant="green">Start</ActionBtn>
-              )}
-            </>
+            isRunning ? (
+              <Btn onClick={() => action('stop')} disabled={loading}>Stop</Btn>
+            ) : (
+              <Btn onClick={() => action('start')} disabled={loading}>Start</Btn>
+            )
           )}
-
-          {isRunning && (
-            <ActionBtn onClick={() => action('restart')} disabled={loading} variant="neutral">Restart</ActionBtn>
-          )}
-
-          <ActionBtn onClick={() => setShowLogs(true)} variant="neutral">Logs</ActionBtn>
-
+          {isRunning && <Btn onClick={() => action('restart')} disabled={loading}>Restart</Btn>}
+          <Btn onClick={() => setShowLogs(true)}>Logs</Btn>
           {!isProd && (
-            <div className="ml-auto">
-              <ActionBtn onClick={() => setShowRemoveConfirm(true)} disabled={loading} variant="red">Remove</ActionBtn>
-            </div>
+            <Btn onClick={() => setShowRemoveConfirm(true)} disabled={loading} danger>Remove</Btn>
           )}
         </div>
       </div>
@@ -109,9 +86,9 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
       {showRemoveConfirm && (
         <ConfirmModal
           title={`Remove stg-${instance.name}?`}
-          message="This will permanently delete the instance, its database, and all filestore data. This cannot be undone."
+          message="This will permanently delete the instance, its database, and all filestore data."
           confirmText="remove"
-          confirmLabel="Remove Instance"
+          confirmLabel="Remove"
           onConfirm={handleRemove}
           onCancel={() => setShowRemoveConfirm(false)}
         />
@@ -120,7 +97,7 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
       {showLogs && (
         <LogViewer
           url={`/api/instances/${instance.name}/logs`}
-          title={`Logs — ${instance.name}`}
+          title={`${instance.name} logs`}
           onClose={() => setShowLogs(false)}
         />
       )}
@@ -128,24 +105,18 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
   );
 }
 
-function ActionBtn({ children, onClick, disabled, variant }: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  variant: 'green' | 'yellow' | 'red' | 'neutral';
+function Btn({ children, onClick, disabled, danger }: {
+  children: React.ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean;
 }) {
-  const styles: Record<string, string> = {
-    green: 'text-green-400 bg-green-500/8 hover:bg-green-500/15 border-green-500/20',
-    yellow: 'text-yellow-400 bg-yellow-500/8 hover:bg-yellow-500/15 border-yellow-500/20',
-    red: 'text-red-400 bg-red-500/8 hover:bg-red-500/15 border-red-500/20',
-    neutral: 'text-gray-400 bg-elevated hover:bg-subtle border-subtle',
-  };
-
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border disabled:opacity-40 transition-all duration-150 ${styles[variant]}`}
+      className={`text-[12px] px-2 py-1 rounded border transition-colors duration-150 disabled:opacity-30 ${
+        danger
+          ? 'text-red-400 border-zinc-700 hover:bg-red-950/30'
+          : 'text-zinc-400 border-zinc-700 hover:text-white hover:bg-zinc-800'
+      }`}
     >
       {children}
     </button>

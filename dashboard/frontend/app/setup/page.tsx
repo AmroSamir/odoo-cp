@@ -19,10 +19,7 @@ export default function SetupPage() {
   const [deployResult, setDeployResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    api.get('/setup/status')
-      .then((res) => setStatus(res.data))
-      .catch(() => null)
-      .finally(() => setLoading(false));
+    api.get('/setup/status').then((res) => setStatus(res.data)).catch(() => null).finally(() => setLoading(false));
   }, []);
 
   const handleDeploy = () => {
@@ -42,160 +39,87 @@ export default function SetupPage() {
       if (!reader) return;
       const decoder = new TextDecoder();
       let buffer = '';
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
-
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              if (data.type === 'log' || data.type === 'start') {
-                setLogs((prev) => [...prev, data.message]);
-              } else if (data.type === 'done') {
+              if (data.type === 'log' || data.type === 'start') setLogs((p) => [...p, data.message]);
+              else if (data.type === 'done') {
                 setDeployResult({ success: data.success, message: data.message });
                 setDeploying(false);
-                if (data.success) {
-                  api.get('/setup/status').then((r) => setStatus(r.data)).catch(() => null);
-                }
+                if (data.success) api.get('/setup/status').then((r) => setStatus(r.data)).catch(() => null);
               } else if (data.type === 'error') {
                 setDeployResult({ success: false, message: data.message });
                 setDeploying(false);
               }
-            } catch { /* ignore */ }
+            } catch {}
           }
         }
       }
     }).catch(() => {
-      setLogs((prev) => [...prev, '', '--- Connection to dashboard lost ---', 'The deployment may still be running on the server.', 'Refresh this page once the server is back online to check the status.']);
-      setDeployResult({ success: false, message: 'Connection lost. The deployment may still be running on the server — refresh this page when the dashboard is reachable again.' });
+      setLogs((p) => [...p, '', '--- Connection lost ---', 'The deployment may still be running on the server.']);
+      setDeployResult({ success: false, message: 'Connection lost. Refresh to check status.' });
       setDeploying(false);
     });
   };
 
-  const handleCloseDrawer = () => {
-    setDrawerOpen(false);
-    setDeploying(false);
-  };
-
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-void">
+      <div className="flex min-h-screen bg-zinc-950">
         <Sidebar />
-        <div className="flex-1 ml-[var(--sidebar-width)]">
-          <TopBar />
-          <main className="pt-[var(--topbar-height)] p-6">
-            <div className="flex items-center gap-2 text-gray-500 text-sm">
-              <span className="w-3.5 h-3.5 border-2 border-subtle border-t-gray-400 rounded-full animate-spin" />
-              Loading...
-            </div>
-          </main>
-        </div>
+        <div className="flex-1 ml-[240px]"><TopBar /><main className="pt-[48px] p-6"><p className="text-zinc-500 text-[13px]">Loading...</p></main></div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-void">
+    <div className="flex min-h-screen bg-zinc-950">
       <Sidebar />
-      <div className="flex-1 ml-[var(--sidebar-width)]">
+      <div className="flex-1 ml-[240px]">
         <TopBar />
-        <main className="pt-[var(--topbar-height)] p-6">
-          <div className="mb-6 animate-fade-in">
-            <h2 className="text-lg font-semibold text-white">Production Setup</h2>
-            <p className="text-[12px] text-gray-500 mt-0.5">Deploy Odoo 19 Enterprise to your server</p>
-          </div>
+        <main className="pt-[48px] p-6">
+          <h2 className="text-[16px] font-medium text-white mb-5">Setup</h2>
 
           {status?.productionDeployed ? (
-            <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-6 max-w-xl animate-slide-up">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-green-500/15 flex items-center justify-center">
-                  <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-white">Production is Running</h3>
-              </div>
-              <p className="text-[13px] text-gray-400 mb-4 ml-11">
-                Deployed at{' '}
-                <a href={`https://${status.domainProd}`} target="_blank" rel="noopener noreferrer"
-                  className="text-accent-glow hover:underline font-mono text-[12px]">
-                  https://{status.domainProd}
-                </a>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-md p-5 max-w-lg">
+              <p className="text-[14px] text-white mb-1">Production is running</p>
+              <p className="text-[13px] text-zinc-400 mb-3">
+                Deployed at <a href={`https://${status.domainProd}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:text-accent-hover font-mono text-[12px]">{status.domainProd}</a>
               </p>
-              <div className="ml-11">
-                <Link href="/instances"
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] rounded-lg bg-accent hover:bg-accent-glow text-white font-medium transition-all duration-150">
-                  Go to Instances
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </Link>
-              </div>
+              <Link href="/instances" className="text-[13px] text-accent hover:text-accent-hover">Go to Instances</Link>
             </div>
           ) : (
-            <div className="max-w-xl animate-slide-up">
-              <div className="bg-surface border border-subtle rounded-xl p-6">
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-8 h-8 rounded-lg bg-accent/15 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-accent-glow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                  </div>
+            <div className="max-w-lg">
+              <div className="bg-zinc-900 border border-zinc-800 rounded-md p-5">
+                <p className="text-[14px] text-white mb-4">Deploy production Odoo</p>
+                <div className="space-y-3">
                   <div>
-                    <h3 className="font-semibold text-white">Deploy Production Odoo</h3>
-                    <p className="text-[11px] text-gray-500 mt-0.5">Downloads addons, configures Docker, sets up SSL</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-[12px] font-medium text-gray-300 mb-1.5">
-                      Production Domain <span className="text-accent">*</span>
-                    </label>
+                    <label className="block text-[13px] text-zinc-400 mb-1">Production domain</label>
                     <input
-                      type="text"
-                      value={domain}
-                      onChange={(e) => setDomain(e.target.value)}
-                      placeholder="erp.example.com"
-                      disabled={deploying}
-                      className="input-field"
+                      type="text" value={domain} onChange={(e) => setDomain(e.target.value)}
+                      placeholder="erp.example.com" disabled={deploying}
+                      className="w-full bg-zinc-950 border border-zinc-700 rounded-md px-3 py-2 text-[13px] text-white placeholder-zinc-600 disabled:opacity-50"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-[12px] font-medium text-gray-300 mb-1.5">
-                      Staging Base Domain
-                      <span className="text-gray-600 font-normal ml-1">(optional)</span>
-                    </label>
+                    <label className="block text-[13px] text-zinc-400 mb-1">Staging domain (optional)</label>
                     <input
-                      type="text"
-                      value={stagingDomain}
-                      onChange={(e) => setStagingDomain(e.target.value)}
-                      placeholder={domain ? `staging.${domain}` : 'staging.erp.example.com'}
-                      disabled={deploying}
-                      className="input-field"
+                      type="text" value={stagingDomain} onChange={(e) => setStagingDomain(e.target.value)}
+                      placeholder={domain ? `staging.${domain}` : 'staging.erp.example.com'} disabled={deploying}
+                      className="w-full bg-zinc-950 border border-zinc-700 rounded-md px-3 py-2 text-[13px] text-white placeholder-zinc-600 disabled:opacity-50"
                     />
-                    <p className="text-[10px] text-gray-600 mt-1.5 font-mono">
-                      Defaults to staging.{domain || 'your-domain'}
-                    </p>
                   </div>
-
                   <button
-                    onClick={handleDeploy}
-                    disabled={!domain || deploying}
-                    className="w-full py-2.5 text-[13px] rounded-lg bg-accent hover:bg-accent-glow text-white font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+                    onClick={handleDeploy} disabled={!domain || deploying}
+                    className="w-full py-2 text-[13px] rounded-md bg-accent hover:bg-accent-hover text-white font-medium disabled:opacity-30 transition-colors duration-150"
                   >
-                    {deploying ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Deploying...
-                      </span>
-                    ) : 'Deploy Production'}
+                    {deploying ? 'Deploying...' : 'Deploy'}
                   </button>
                 </div>
               </div>
@@ -204,24 +128,15 @@ export default function SetupPage() {
         </main>
       </div>
 
-      <DeployDrawer
-        open={drawerOpen}
-        title="setup-production.sh"
-        logs={logs}
-        deploying={deploying}
-        result={deployResult}
-        onClose={handleCloseDrawer}
-      >
-        {/* Next steps shown in drawer footer on success */}
+      <DeployDrawer open={drawerOpen} title="setup-production.sh" logs={logs} deploying={deploying} result={deployResult} onClose={() => { setDrawerOpen(false); setDeploying(false); }}>
         {deployResult?.success && (
-          <div className="mt-3 text-[12px] text-gray-400">
-            <p className="font-medium text-gray-300 mb-2">Next steps:</p>
-            <ol className="list-decimal list-inside space-y-1.5 text-gray-500">
-              <li>Go to <a href={`https://${domain}/web/database/manager`} target="_blank" rel="noopener noreferrer" className="text-accent-glow hover:underline font-mono text-[11px]">https://{domain}/web/database/manager</a></li>
-              <li>Create a database <span className="text-yellow-500/80">(name MUST be lowercase)</span></li>
-              <li>Install <span className="text-white font-medium">odoo_unlimited</span> addon</li>
+          <div className="mt-2 text-[12px] text-zinc-400">
+            <p className="mb-1">Next:</p>
+            <ol className="list-decimal list-inside space-y-0.5 text-zinc-500">
+              <li>Create database at <a href={`https://${domain}/web/database/manager`} target="_blank" className="text-accent font-mono text-[11px]">{domain}</a> (lowercase name)</li>
+              <li>Install odoo_unlimited</li>
               <li>Install Accounting</li>
-              <li>Register with any code (e.g. abc123456)</li>
+              <li>Register with any code</li>
             </ol>
           </div>
         )}
