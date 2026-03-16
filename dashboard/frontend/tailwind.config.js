@@ -9,15 +9,15 @@ module.exports = {
         elevated: '#18182A',
         subtle: '#1E1E32',
         accent: {
-          DEFAULT: '#8B5CF6',
-          glow: '#A78BFA',
-          dim: '#6D28D9',
-          muted: 'rgba(139, 92, 246, 0.15)',
+          DEFAULT: '#3B82F6',
+          glow: '#60A5FA',
+          dim: '#2563EB',
+          muted: 'rgba(59, 130, 246, 0.15)',
         },
         // keep backward compat
         odoo: {
-          purple: '#8B5CF6',
-          light: '#A78BFA',
+          purple: '#3B82F6',
+          light: '#60A5FA',
         },
       },
       fontFamily: {

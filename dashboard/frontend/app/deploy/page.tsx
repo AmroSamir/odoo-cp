@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
 import ConfirmModal from '@/components/common/ConfirmModal';
+import DeployDrawer from '@/components/common/DeployDrawer';
 import { usePolling } from '@/lib/usePolling';
-import { useSSE } from '@/lib/useSSE';
 import api from '@/lib/api';
 import type { DeployHistoryEntry, SetupStatus } from '@/types';
 
@@ -14,8 +14,11 @@ export default function DeployPage() {
   const { data: history, refresh } = usePolling<DeployHistoryEntry[]>('/deploy/history', 10000);
   const [deploying, setDeploying] = useState<null | 'staging' | 'production'>(null);
   const [confirmProd, setConfirmProd] = useState(false);
-  const [logUrl, setLogUrl] = useState<string | null>(null);
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [deployResult, setDeployResult] = useState<{ success: boolean; message: string } | null>(null);
+  const esRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     api.get('/setup/status').then((res) => setSetupStatus(res.data)).catch(() => null);
@@ -23,9 +26,54 @@ export default function DeployPage() {
 
   const prodNotDeployed = setupStatus !== null && !setupStatus.productionDeployed;
 
-  const handleDeploy = async (target: 'staging' | 'production') => {
+  const handleDeploy = (target: 'staging' | 'production') => {
     setDeploying(target);
-    setLogUrl(`/api/deploy/${target}`);
+    setLogs([]);
+    setDeployResult(null);
+    setDrawerOpen(true);
+
+    const es = new EventSource(`/api/deploy/${target}`);
+    esRef.current = es;
+
+    es.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (typeof data === 'object' && data !== null) {
+          if (data.done) {
+            setDeployResult({
+              success: data.exitCode === 0,
+              message: data.exitCode === 0 ? `Successfully deployed to ${target}` : `Deployment to ${target} failed`,
+            });
+            setDeploying(null);
+            refresh();
+            es.close();
+          } else if (data.line) {
+            setLogs((prev) => [...prev, data.line]);
+          }
+        } else {
+          setLogs((prev) => [...prev, String(data)]);
+        }
+      } catch {
+        setLogs((prev) => [...prev, e.data]);
+      }
+    };
+
+    es.onerror = () => {
+      setDeploying(null);
+      if (!deployResult) {
+        setDeployResult({ success: false, message: 'Connection lost during deployment' });
+      }
+      es.close();
+    };
+  };
+
+  const handleCloseDrawer = () => {
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+    setDrawerOpen(false);
+    setDeploying(null);
   };
 
   const statusConfig: Record<string, { color: string; bg: string }> = {
@@ -61,14 +109,9 @@ export default function DeployPage() {
                 <button
                   onClick={() => handleDeploy('staging')}
                   disabled={!!deploying}
-                  className="px-4 py-2 text-[13px] rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium disabled:opacity-40 transition-all duration-150"
+                  className="px-4 py-2 text-[13px] rounded-lg bg-accent hover:bg-accent-glow text-white font-medium disabled:opacity-40 transition-all duration-150"
                 >
-                  {deploying === 'staging' ? (
-                    <span className="flex items-center gap-2">
-                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Deploying...
-                    </span>
-                  ) : 'Deploy to Staging'}
+                  Deploy to Staging
                 </button>
               </div>
             </div>
@@ -103,23 +146,13 @@ export default function DeployPage() {
                       disabled={!!deploying}
                       className="px-4 py-2 text-[13px] rounded-lg bg-accent hover:bg-accent-glow text-white font-medium disabled:opacity-40 transition-all duration-150"
                     >
-                      {deploying === 'production' ? (
-                        <span className="flex items-center gap-2">
-                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Deploying...
-                        </span>
-                      ) : 'Deploy to Production'}
+                      Deploy to Production
                     </button>
                   </div>
                 </>
               )}
             </div>
           </div>
-
-          {/* Deploy log */}
-          {deploying && logUrl && (
-            <DeployLog url={logUrl} target={deploying} onDone={() => { setDeploying(null); refresh(); }} />
-          )}
 
           {/* History */}
           <div className="animate-fade-in">
@@ -164,39 +197,15 @@ export default function DeployPage() {
           danger={false}
         />
       )}
-    </div>
-  );
-}
 
-function DeployLog({ url, target, onDone }: { url: string; target: string; onDone: () => void }) {
-  const { lines } = useSSE(url);
-  const lastLine = lines[lines.length - 1] || '';
-  const isDone = typeof lastLine === 'string' && lastLine.includes('"done":true');
-
-  return (
-    <div className="mb-8 bg-void border border-subtle rounded-xl overflow-hidden animate-slide-up">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-subtle bg-surface">
-        <div className="flex items-center gap-2.5">
-          <div className="flex gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-red-500/60" />
-            <div className="w-2 h-2 rounded-full bg-yellow-500/60" />
-            <div className="w-2 h-2 rounded-full bg-green-500/60" />
-          </div>
-          <span className="text-[11px] font-mono text-gray-400">deploy-{target}.sh</span>
-          {!isDone && <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse-glow" />}
-        </div>
-        {isDone && (
-          <button onClick={onDone} className="text-[11px] text-accent-glow hover:text-white font-medium transition-colors">
-            Close
-          </button>
-        )}
-      </div>
-      <div className="p-4 font-mono text-[11px] text-green-300/90 h-48 overflow-y-auto relative">
-        <div className="absolute inset-0 scanlines" />
-        {lines.map((line, i) => (
-          <div key={i} className="whitespace-pre-wrap relative z-10">{line}</div>
-        ))}
-      </div>
+      <DeployDrawer
+        open={drawerOpen}
+        title={`deploy-${deploying || 'production'}.sh`}
+        logs={logs}
+        deploying={!!deploying}
+        result={deployResult}
+        onClose={handleCloseDrawer}
+      />
     </div>
   );
 }

@@ -7,8 +7,8 @@
 :root {
   --sidebar-width: 240px;
   --topbar-height: 56px;
-  --accent: #8B5CF6;
-  --accent-glow: #A78BFA;
+  --accent: #3B82F6;
+  --accent-glow: #60A5FA;
 }
 
 body {
@@ -62,7 +62,7 @@ body {
   box-shadow: 0 0 6px rgba(234, 179, 8, 0.4);
 }
 .glow-accent {
-  box-shadow: 0 0 8px rgba(139, 92, 246, 0.3);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
 }
 
 /* ── Card hover lift ──────────────────────────────────── */
@@ -94,7 +94,7 @@ body {
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.2);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
 }
 
 /* ── Stagger animation delays ─────────────────────────── */
