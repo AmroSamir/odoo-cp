@@ -22,15 +22,15 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
 
   return (
     <>
-      <div className="bg-arctic-surface border border-arctic-border rounded-md p-4">
+      <div className="bg-page-surface border border-page-border rounded-md p-4">
         <div className="flex items-start justify-between mb-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[14px] text-[#0c4a6e] font-medium">{instance.name}</span>
+              <span className="text-[14px] text-[#1e293b] font-medium">{instance.name}</span>
               {isProd && <span className="text-[11px] text-accent font-mono">prod</span>}
             </div>
-            <div className="text-[12px] text-[#7a9baa] mt-1 font-mono">
-              :{instance.port}{age !== null && <span className="ml-2">{age === 0 ? 'today' : `${age}d ago`}</span>}{instance.ttlDays && <span className="ml-2 text-amber-600">ttl {instance.ttlDays}d</span>}
+            <div className="text-[12px] text-[#64748b] mt-1 font-mono">
+              :{instance.port}{age !== null && <span className="ml-2">{age === 0 ? 'today' : `${age}d ago`}</span>}{instance.ttlDays && <span className="ml-2 text-amber-500">ttl {instance.ttlDays}d</span>}
             </div>
           </div>
           <StatusBadge status={instance.status} />
@@ -51,7 +51,7 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
 function Btn({ children, onClick, disabled, danger }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; danger?: boolean }) {
   return (
     <button onClick={onClick} disabled={disabled}
-      className={`text-[12px] px-2 py-1 rounded border transition-colors duration-150 disabled:opacity-30 ${danger ? 'text-red-500 border-arctic-border hover:bg-red-50' : 'text-[#4a7a8a] border-arctic-border hover:text-[#0c4a6e] hover:bg-arctic-bg'}`}>
+      className={`text-[12px] px-2 py-1 rounded border transition-colors duration-150 disabled:opacity-30 ${danger ? 'text-red-600 border-page-border hover:bg-red-50' : 'text-[#475569] border-page-border hover:text-[#1e293b] hover:bg-page-bg'}`}>
       {children}
     </button>
   );

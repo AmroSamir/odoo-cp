@@ -18,18 +18,18 @@ export default function InstancesPage() {
   const prodNotDeployed = setupStatus !== null && !setupStatus.productionDeployed;
 
   return (
-    <div className="flex min-h-screen bg-arctic-bg">
+    <div className="flex min-h-screen bg-page-bg">
       <Sidebar />
       <div className="flex-1 ml-[240px]"><TopBar />
         <main className="pt-[48px] p-6">
           <div className="flex items-center justify-between mb-5">
-            <h2 className="text-[16px] font-medium text-[#0c4a6e]">Instances</h2>
+            <h2 className="text-[16px] font-medium text-[#1e293b]">Instances</h2>
             <button onClick={() => setShowCreate(true)} disabled={prodNotDeployed} className="px-3 py-1.5 text-[13px] rounded-md bg-accent hover:bg-accent-hover text-white font-medium disabled:opacity-30 transition-colors duration-150">New instance</button>
           </div>
-          {prodNotDeployed && <div className="bg-arctic-surface border border-arctic-border rounded-md p-4 mb-5"><p className="text-[13px] text-[#4a7a8a]">Production is not deployed yet. <Link href="/setup" className="text-accent hover:text-accent-hover">Go to Setup</Link></p></div>}
-          {loading && !instances && <p className="text-[#7a9baa] text-[13px]">Loading...</p>}
+          {prodNotDeployed && <div className="bg-page-surface border border-page-border rounded-md p-4 mb-5"><p className="text-[13px] text-[#475569]">Production is not deployed yet. <Link href="/setup" className="text-accent hover:text-accent-hover">Go to Setup</Link></p></div>}
+          {loading && !instances && <p className="text-[#64748b] text-[13px]">Loading...</p>}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">{instances?.map((i) => <InstanceCard key={i.name} instance={i} onRefresh={refresh} />)}</div>
-          {instances?.length === 0 && !prodNotDeployed && <p className="text-[#94b3c2] text-[13px] py-12 text-center">No instances. Create one to get started.</p>}
+          {instances?.length === 0 && !prodNotDeployed && <p className="text-[#94a3b8] text-[13px] py-12 text-center">No instances. Create one to get started.</p>}
         </main>
       </div>
       {showCreate && <CreateInstanceModal onClose={() => setShowCreate(false)} onCreated={refresh} />}

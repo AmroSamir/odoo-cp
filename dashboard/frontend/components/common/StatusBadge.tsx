@@ -5,9 +5,9 @@ interface StatusBadgeProps {
 export default function StatusBadge({ status }: StatusBadgeProps) {
   const colors: Record<string, string> = {
     running: 'text-green-600',
-    exited:  'text-amber-600',
-    absent:  'text-[#94b3c2]',
-    error:   'text-red-500',
+    exited:  'text-amber-500',
+    absent:  'text-[#94a3b8]',
+    error:   'text-red-600',
   };
 
   return (

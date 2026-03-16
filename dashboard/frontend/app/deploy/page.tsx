@@ -32,35 +32,35 @@ export default function DeployPage() {
   const handleCloseDrawer = () => { esRef.current?.close(); esRef.current = null; setDrawerOpen(false); setDeploying(null); };
 
   return (
-    <div className="flex min-h-screen bg-arctic-bg">
+    <div className="flex min-h-screen bg-page-bg">
       <Sidebar />
       <div className="flex-1 ml-[240px]"><TopBar />
         <main className="pt-[48px] p-6">
-          <h2 className="text-[16px] font-medium text-[#0c4a6e] mb-5">Deploy</h2>
+          <h2 className="text-[16px] font-medium text-[#1e293b] mb-5">Deploy</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-            <div className="bg-arctic-surface border border-arctic-border rounded-md p-5">
-              <p className="text-[14px] text-[#0c4a6e] mb-1">Staging</p>
-              <p className="text-[12px] text-[#7a9baa] mb-3">Pull code and rebuild staging.</p>
+            <div className="bg-page-surface border border-page-border rounded-md p-5">
+              <p className="text-[14px] text-[#1e293b] mb-1">Staging</p>
+              <p className="text-[12px] text-[#64748b] mb-3">Pull code and rebuild staging.</p>
               <button onClick={() => handleDeploy('staging')} disabled={!!deploying} className="px-3 py-1.5 text-[13px] rounded-md bg-accent hover:bg-accent-hover text-white font-medium disabled:opacity-30 transition-colors duration-150">Deploy</button>
             </div>
-            <div className="bg-arctic-surface border border-arctic-border rounded-md p-5">
-              <p className="text-[14px] text-[#0c4a6e] mb-1">Production</p>
-              {prodNotDeployed ? <p className="text-[12px] text-[#7a9baa]">Not deployed. <Link href="/setup" className="text-accent">Setup first</Link></p> : (
-                <><p className="text-[12px] text-[#7a9baa] mb-3">Backup, pull, rebuild production.</p>
+            <div className="bg-page-surface border border-page-border rounded-md p-5">
+              <p className="text-[14px] text-[#1e293b] mb-1">Production</p>
+              {prodNotDeployed ? <p className="text-[12px] text-[#64748b]">Not deployed. <Link href="/setup" className="text-accent">Setup first</Link></p> : (
+                <><p className="text-[12px] text-[#64748b] mb-3">Backup, pull, rebuild production.</p>
                 <button onClick={() => setConfirmProd(true)} disabled={!!deploying} className="px-3 py-1.5 text-[13px] rounded-md bg-accent hover:bg-accent-hover text-white font-medium disabled:opacity-30 transition-colors duration-150">Deploy</button></>
               )}
             </div>
           </div>
           <div>
-            <h3 className="text-[13px] text-[#4a7a8a] mb-2">History</h3>
-            {!history?.length ? <p className="text-[12px] text-[#94b3c2]">No deployments yet.</p> : (
+            <h3 className="text-[13px] text-[#475569] mb-2">History</h3>
+            {!history?.length ? <p className="text-[12px] text-[#94a3b8]">No deployments yet.</p> : (
               <div className="space-y-1">
                 {history.map((e) => (
-                  <div key={e.id} className="flex items-center gap-4 bg-arctic-surface border border-arctic-border rounded-md px-4 py-2.5 text-[12px]">
-                    <span className={`font-mono ${e.status === 'success' ? 'text-green-600' : e.status === 'failed' ? 'text-red-500' : 'text-amber-600'}`}>{e.status}</span>
-                    <span className="text-[#0c4a6e]">{e.target}</span>
-                    <span className="text-[#94b3c2] font-mono">{new Date(e.startedAt).toLocaleString()}</span>
-                    {e.finishedAt && <span className="text-[#94b3c2] font-mono ml-auto">{Math.round((new Date(e.finishedAt).getTime() - new Date(e.startedAt).getTime()) / 1000)}s</span>}
+                  <div key={e.id} className="flex items-center gap-4 bg-page-surface border border-page-border rounded-md px-4 py-2.5 text-[12px]">
+                    <span className={`font-mono ${e.status === 'success' ? 'text-green-600' : e.status === 'failed' ? 'text-red-600' : 'text-amber-500'}`}>{e.status}</span>
+                    <span className="text-[#1e293b]">{e.target}</span>
+                    <span className="text-[#94a3b8] font-mono">{new Date(e.startedAt).toLocaleString()}</span>
+                    {e.finishedAt && <span className="text-[#94a3b8] font-mono ml-auto">{Math.round((new Date(e.finishedAt).getTime() - new Date(e.startedAt).getTime()) / 1000)}s</span>}
                   </div>
                 ))}
               </div>

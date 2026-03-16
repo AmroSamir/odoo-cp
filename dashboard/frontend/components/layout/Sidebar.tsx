@@ -22,8 +22,8 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-[240px] bg-arctic-surface border-r border-arctic-border flex flex-col">
-      <div className="px-5 py-4 border-b border-arctic-border">
+    <aside className="fixed left-0 top-0 h-full w-[240px] bg-page-surface border-r border-page-border flex flex-col">
+      <div className="px-5 py-4 border-b border-page-border">
         <img src="/logo.png" alt="Logo" className="h-7 w-auto" />
       </div>
 
@@ -36,8 +36,8 @@ export default function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 px-5 py-2 text-[14px] transition-colors duration-150 ${
                 active
-                  ? 'text-accent bg-arctic-bg font-medium'
-                  : 'text-[#4a7a8a] hover:text-[#0c4a6e] hover:bg-arctic-bg/60'
+                  ? 'text-accent bg-page-bg font-medium'
+                  : 'text-[#475569] hover:text-[#1e293b] hover:bg-page-bg/60'
               }`}
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -49,10 +49,10 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="px-4 py-3 border-t border-arctic-border">
+      <div className="px-4 py-3 border-t border-page-border">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 text-[13px] text-[#7a9baa] hover:text-red-500 transition-colors duration-150"
+          className="flex items-center gap-3 text-[13px] text-[#64748b] hover:text-red-600 transition-colors duration-150"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

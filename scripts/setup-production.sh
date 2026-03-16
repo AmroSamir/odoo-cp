@@ -4,24 +4,24 @@ set -e
 # ╔════════════════════════════════════════════════════════════════════╗
 # ║  Setup Production Odoo — Called from the Dashboard                ║
 # ║                                                                    ║
-# ║  This script handles the first-time production Odoo deployment:   ║
-# ║    1. Downloads Odoo Enterprise addons (~900 MB)                  ║
+# ║  Flow (matches the original working setup-odoo.sh):               ║
+# ║    1. Downloads Odoo Enterprise addons (~900 MB from Dropbox)     ║
 # ║    2. Downloads odoo_unlimited addon                              ║
-# ║    3. Regenerates docker-compose.yml with Odoo services           ║
-# ║    4. Regenerates Nginx config with production server block       ║
-# ║    5. Requests SSL certificate for production domain              ║
-# ║    6. Starts Odoo containers                                      ║
-# ║    7. Updates .deploy-config                                      ║
+# ║    3. Generates Dockerfile + docker-compose.yml                   ║
+# ║    4. Gets SSL certificate (two-phase nginx approach)             ║
+# ║    5. Builds and starts Odoo containers                           ║
+# ║    6. Updates .deploy-config                                      ║
+# ║                                                                    ║
+# ║  NOTE: nginx reload is handled by the dashboard backend AFTER     ║
+# ║  this script completes and the SSE stream ends.                   ║
 # ║                                                                    ║
 # ║  Usage:                                                            ║
 # ║    bash setup-production.sh --domain erp.example.com              ║
 # ╚════════════════════════════════════════════════════════════════════╝
 
-# ── Determine script location and load config ─────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Load .deploy-config
 if [ -f "$INSTALL_DIR/.deploy-config" ]; then
   source "$INSTALL_DIR/.deploy-config"
 fi
@@ -30,57 +30,33 @@ BACKUP_DIR="${BACKUP_DIR:-/opt/backups}"
 DROPBOX_URL="https://www.dropbox.com/scl/fi/rtt0vplxrao3elzk3fooz/odoo19e-docker.zip?rlkey=k1vwn8g2s1eao07kc6hqnyusp&st=29zgcif9&dl=1"
 ODOO_UNLIMITED_URL="https://www.dropbox.com/scl/fi/8f9l9h2w1z8r6qkzefc97/odoo_unlimited.zip?rlkey=a4j5kpiktxc06827tzelj5j4r&st=ju8fh4oi&dl=1"
 
-# ── Colors ─────────────────────────────────────────────────────────
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 log()  { echo -e "${GREEN}[✔]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
 err()  { echo -e "${RED}[✘]${NC} $1"; }
 step() { echo -e "\n${CYAN}${BOLD}━━━ $1 ━━━${NC}\n"; }
 
-# ── Parse arguments ────────────────────────────────────────────────
+# ── Parse arguments ──────────────────────────────────────────────
 DOMAIN_PROD=""
 DOMAIN_STAGING_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    --domain)
-      DOMAIN_PROD="$2"
-      shift 2
-      ;;
-    --staging-domain)
-      DOMAIN_STAGING_OVERRIDE="$2"
-      shift 2
-      ;;
-    *)
-      err "Unknown argument: $1"
-      exit 1
-      ;;
+    --domain) DOMAIN_PROD="$2"; shift 2 ;;
+    --staging-domain) DOMAIN_STAGING_OVERRIDE="$2"; shift 2 ;;
+    *) err "Unknown argument: $1"; exit 1 ;;
   esac
 done
 
 if [ -z "$DOMAIN_PROD" ]; then
-  err "Usage: setup-production.sh --domain erp.example.com [--staging-domain staging.erp.example.com]"
+  err "Usage: setup-production.sh --domain erp.example.com"
   exit 1
 fi
 
 DOMAIN_STAGING="${DOMAIN_STAGING_OVERRIDE:-staging.${DOMAIN_PROD}}"
 
-# Read DOMAIN_DASHBOARD from .deploy-config (set during initial setup)
-if [ -z "$DOMAIN_DASHBOARD" ]; then
-  err "DOMAIN_DASHBOARD not found in .deploy-config. Run setup-odoo.sh first."
-  exit 1
-fi
-
-if [ -z "$SSL_EMAIL" ]; then
-  err "SSL_EMAIL not found in .deploy-config. Run setup-odoo.sh first."
-  exit 1
-fi
+if [ -z "$DOMAIN_DASHBOARD" ]; then err "DOMAIN_DASHBOARD not found in .deploy-config"; exit 1; fi
+if [ -z "$SSL_EMAIL" ]; then err "SSL_EMAIL not found in .deploy-config"; exit 1; fi
 
 echo ""
 log "Production domain:  $DOMAIN_PROD"
@@ -89,11 +65,9 @@ log "Dashboard domain:   $DOMAIN_DASHBOARD"
 log "Install directory:  $INSTALL_DIR"
 echo ""
 
-# ── Check if production is already deployed ────────────────────────
 EXISTING_PROD=$(grep "^DOMAIN_PROD=" "$INSTALL_DIR/.deploy-config" 2>/dev/null | cut -d= -f2)
 if [ -n "$EXISTING_PROD" ]; then
   err "Production is already deployed at $EXISTING_PROD"
-  err "Use the Deploy page to update it, or remove DOMAIN_PROD from .deploy-config to re-deploy."
   exit 1
 fi
 
@@ -101,7 +75,7 @@ fi
 # ════════════════════════════════════════════════════════════════════
 # STEP 1: Download Odoo Enterprise addons
 # ════════════════════════════════════════════════════════════════════
-step "Step 1/6 — Downloading Odoo Enterprise addons"
+step "Step 1/5 — Downloading Odoo Enterprise addons"
 
 if [ -d "$INSTALL_DIR/addons" ] && [ "$(ls -A "$INSTALL_DIR/addons" 2>/dev/null)" ]; then
   log "addons/ already exists — skipping download"
@@ -120,56 +94,27 @@ else
     cp -r "$ADDONS_SRC" "$INSTALL_DIR/addons"
     log "addons/ installed ($(ls "$INSTALL_DIR/addons" | wc -l) modules)"
   else
-    warn "Could not locate addons/ inside the downloaded zip"
-    warn "Odoo will use built-in addons only"
+    warn "Could not locate addons/ — Odoo will use built-in addons only"
   fi
 
   rm -rf /tmp/odoo-extract /tmp/odoo19e-docker.zip
 fi
 
-
-# ════════════════════════════════════════════════════════════════════
-# STEP 2: Download odoo_unlimited addon
-# ════════════════════════════════════════════════════════════════════
-step "Step 2/6 — Downloading odoo_unlimited addon"
-
 mkdir -p "$INSTALL_DIR/extra-addons/custom"
-
-if [ -d "$INSTALL_DIR/extra-addons/odoo_unlimited" ]; then
-  warn "odoo_unlimited already exists — replacing with latest..."
-  rm -rf "$INSTALL_DIR/extra-addons/odoo_unlimited"
-fi
-
-log "Downloading odoo_unlimited.zip..."
-wget -q --show-progress "$ODOO_UNLIMITED_URL" -O /tmp/odoo_unlimited.zip || {
-  warn "Failed to download odoo_unlimited — you can add it manually later"
-}
-
-if [ -f "/tmp/odoo_unlimited.zip" ]; then
-  unzip -q -o /tmp/odoo_unlimited.zip -d "$INSTALL_DIR/extra-addons/"
-  rm -f /tmp/odoo_unlimited.zip
-  if [ -d "$INSTALL_DIR/extra-addons/odoo_unlimited" ]; then
-    log "odoo_unlimited addon installed"
-  else
-    warn "odoo_unlimited extraction may have used a different folder name"
-  fi
-fi
-
 mkdir -p "$INSTALL_DIR/odoo-data"
 
 
 # ════════════════════════════════════════════════════════════════════
-# STEP 3: Generate Dockerfile + docker-compose.yml
+# STEP 2: Generate Dockerfile + docker-compose.yml
 # ════════════════════════════════════════════════════════════════════
-step "Step 3/6 — Generating Docker configuration"
+step "Step 2/5 — Generating Docker configuration"
 
-# Dockerfile (idempotent)
 cat > "$INSTALL_DIR/Dockerfile" << 'DOCKERFILE'
 FROM odoo:19
 
 USER root
 
-# Install system dependencies
+# Install system dependencies needed by Odoo modules
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wkhtmltopdf \
@@ -177,7 +122,7 @@ RUN apt-get update && \
     python3-pip && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python libraries
+# Install Python libraries needed by Odoo modules
 RUN pip3 install imgkit google-auth --break-system-packages
 
 USER odoo
@@ -185,13 +130,11 @@ DOCKERFILE
 
 log "Dockerfile created"
 
-# Load .env to get DASHBOARD_SECRET and DASHBOARD_ADMIN_PASSWORD
 if [ -f "$INSTALL_DIR/.env" ]; then
   source "$INSTALL_DIR/.env"
 fi
 
-# docker-compose.yml — now includes production Odoo services
-# NOTE: addons are mounted to /mnt/extra-addons only (NOT overriding built-in /usr/lib/.../odoo/addons)
+# docker-compose.yml — uses the ORIGINAL working addons mount path
 cat > "$INSTALL_DIR/docker-compose.yml" << COMPOSEFILE
 services:
 
@@ -214,9 +157,8 @@ services:
       - ODOO_PROXY_MODE=True
     volumes:
       - ${INSTALL_DIR}/extra-addons:/mnt/extra-addons
-      - ${INSTALL_DIR}/addons:/mnt/addons
+      - ${INSTALL_DIR}/addons:/usr/lib/python3/dist-packages/odoo/addons
       - ${INSTALL_DIR}/odoo-data:/var/lib/odoo
-    command: odoo --addons-path=/mnt/addons,/mnt/extra-addons
     restart: unless-stopped
     networks:
       - odoo-net
@@ -276,8 +218,6 @@ services:
       - ${INSTALL_DIR}/staging/nginx:/etc/nginx/staging-instances:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
-    depends_on:
-      - dashboard
     restart: unless-stopped
     networks:
       - odoo-net
@@ -289,18 +229,28 @@ networks:
     driver: bridge
 COMPOSEFILE
 
-log "docker-compose.yml created with production + dashboard"
+log "docker-compose.yml created"
 
 
 # ════════════════════════════════════════════════════════════════════
-# STEP 4: Regenerate Nginx config
+# STEP 3: SSL Certificate for production domain
 # ════════════════════════════════════════════════════════════════════
-step "Step 4/6 — Regenerating Nginx configuration"
+step "Step 3/5 — SSL certificate for production domain"
 
-mkdir -p "$INSTALL_DIR/nginx"
+docker run --rm -v /var/www:/var/www alpine mkdir -p /var/www/certbot 2>/dev/null || true
 
-cat > "$INSTALL_DIR/nginx/default.conf" << NGINXCONF
-# ── Redirect HTTP → HTTPS ──────────────────────────────────
+CERT_EXISTS=$(docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "[ -f '/etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem' ] && echo yes || echo no" 2>/dev/null || echo "no")
+
+if [ "$CERT_EXISTS" = "yes" ]; then
+  log "SSL cert for $DOMAIN_PROD already exists — skipping"
+else
+  # ── Phase 1: Add production domain to nginx HTTP block for ACME challenge ──
+  # Write a TEMPORARY nginx config that adds HTTP for production domain
+  # but keeps the existing dashboard HTTPS block unchanged.
+  log "Adding production domain to nginx for ACME challenge..."
+
+  cat > "$INSTALL_DIR/nginx/default.conf" << NGINXCONF_TEMP
+# Temporary config — HTTP for both domains (ACME challenge), HTTPS only for dashboard
 server {
     listen 80;
     server_name ${DOMAIN_PROD} ${DOMAIN_DASHBOARD};
@@ -314,7 +264,84 @@ server {
     }
 }
 
-# ── Production: ${DOMAIN_PROD} ───────────────────────────────
+# Dashboard HTTPS (unchanged — keeps existing SSE connection alive)
+server {
+    listen 443 ssl;
+    server_name ${DOMAIN_DASHBOARD};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN_DASHBOARD}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_DASHBOARD}/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    client_max_body_size 10M;
+
+    location / {
+        proxy_pass http://dashboard:3000;
+        proxy_set_header Host \$http_host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_read_timeout 3600s;
+        proxy_buffering off;
+    }
+}
+
+include /etc/nginx/staging-instances/*.conf;
+NGINXCONF_TEMP
+
+  # Reload nginx with temp config (dashboard HTTPS stays, adds production HTTP)
+  docker exec nginx_odoo nginx -s reload 2>/dev/null || true
+  sleep 2
+
+  # ── Phase 2: Get real SSL cert via webroot (nginx is serving HTTP for production domain) ──
+  log "Requesting SSL certificate for $DOMAIN_PROD..."
+
+  if docker run --rm \
+    -v /etc/letsencrypt:/etc/letsencrypt \
+    -v /var/www/certbot:/var/www/certbot \
+    certbot/certbot certonly --webroot \
+      -w /var/www/certbot \
+      -d "$DOMAIN_PROD" \
+      --email "$SSL_EMAIL" \
+      --agree-tos \
+      --no-eff-email \
+      --non-interactive 2>&1; then
+    log "SSL cert for $DOMAIN_PROD obtained successfully!"
+  else
+    warn "Certbot webroot failed — creating self-signed cert as fallback..."
+    docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "
+      mkdir -p /etc/letsencrypt/live/$DOMAIN_PROD &&
+      apk add --no-cache openssl > /dev/null 2>&1 &&
+      openssl req -x509 -nodes -days 30 \
+        -newkey rsa:2048 \
+        -keyout /etc/letsencrypt/live/$DOMAIN_PROD/privkey.pem \
+        -out /etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem \
+        -subj '/CN=$DOMAIN_PROD' 2>/dev/null
+    "
+    warn "Self-signed cert created — renew from SSL page when DNS is ready"
+  fi
+fi
+
+# ── Write the FINAL nginx config with HTTPS for both domains ──
+log "Writing final nginx configuration..."
+
+cat > "$INSTALL_DIR/nginx/default.conf" << NGINXCONF
+server {
+    listen 80;
+    server_name ${DOMAIN_PROD} ${DOMAIN_DASHBOARD};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
 server {
     listen 443 ssl;
     server_name ${DOMAIN_PROD};
@@ -360,7 +387,6 @@ server {
     }
 }
 
-# ── Dashboard: ${DOMAIN_DASHBOARD} ──────────────────────────
 server {
     listen 443 ssl;
     server_name ${DOMAIN_DASHBOARD};
@@ -368,9 +394,6 @@ server {
     ssl_certificate     /etc/letsencrypt/live/${DOMAIN_DASHBOARD}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN_DASHBOARD}/privkey.pem;
     ssl_protocols       TLSv1.2 TLSv1.3;
-
-    access_log /var/log/nginx/dashboard-access.log;
-    error_log /var/log/nginx/dashboard-error.log;
 
     client_max_body_size 10M;
 
@@ -380,7 +403,6 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-        # SSE support (log streaming, deploy output)
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "Upgrade";
@@ -389,87 +411,42 @@ server {
     }
 }
 
-# ── Dynamic staging instances ────────────────────────────────
-# Auto-generated by staging-manager.sh when --with-ssl is used.
-# Each instance gets its own conf file in staging/nginx/
 include /etc/nginx/staging-instances/*.conf;
 NGINXCONF
 
-log "Nginx config created for $DOMAIN_PROD and $DOMAIN_DASHBOARD"
+log "Final nginx config written"
 
 
 # ════════════════════════════════════════════════════════════════════
-# STEP 5: SSL Certificate for production domain
+# STEP 4: Download odoo_unlimited addon
 # ════════════════════════════════════════════════════════════════════
-step "Step 5/6 — SSL certificate for production domain"
+step "Step 4/5 — Downloading odoo_unlimited addon"
 
-# Create /var/www/certbot on the host (we may be running inside a container)
-docker run --rm -v /var/www:/var/www alpine mkdir -p /var/www/certbot 2>/dev/null || mkdir -p /var/www/certbot 2>/dev/null || true
+if [ -d "$INSTALL_DIR/extra-addons/odoo_unlimited" ]; then
+  warn "odoo_unlimited already exists — replacing with latest..."
+  rm -rf "$INSTALL_DIR/extra-addons/odoo_unlimited"
+fi
 
-# Check if cert already exists (via a temporary container that mounts /etc/letsencrypt)
-CERT_EXISTS=$(docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "[ -d '/etc/letsencrypt/live/$DOMAIN_PROD' ] && echo yes || echo no" 2>/dev/null || echo "no")
+log "Downloading odoo_unlimited.zip..."
+wget -q --show-progress "$ODOO_UNLIMITED_URL" -O /tmp/odoo_unlimited.zip || {
+  warn "Failed to download odoo_unlimited — you can add it manually later"
+}
 
-if [ "$CERT_EXISTS" = "yes" ]; then
-  log "SSL cert for $DOMAIN_PROD already exists — skipping"
-else
-  # Use webroot mode via running nginx — no need to stop nginx!
-  # Nginx already has: location /.well-known/acme-challenge/ { root /var/www/certbot; }
-  # and /var/www/certbot is mounted in the nginx container.
-  log "Requesting SSL certificate for $DOMAIN_PROD (webroot mode)..."
-
-  # First try webroot mode (nginx stays up, dashboard stays accessible)
-  if docker run --rm \
-    -v /etc/letsencrypt:/etc/letsencrypt \
-    -v /var/www/certbot:/var/www/certbot \
-    certbot/certbot certonly --webroot \
-      -w /var/www/certbot \
-      -d "$DOMAIN_PROD" \
-      --email "$SSL_EMAIL" \
-      --agree-tos \
-      --no-eff-email \
-      --non-interactive 2>&1; then
-    log "SSL cert for $DOMAIN_PROD obtained successfully!"
+if [ -f "/tmp/odoo_unlimited.zip" ]; then
+  unzip -q -o /tmp/odoo_unlimited.zip -d "$INSTALL_DIR/extra-addons/"
+  rm -f /tmp/odoo_unlimited.zip
+  if [ -d "$INSTALL_DIR/extra-addons/odoo_unlimited" ]; then
+    log "odoo_unlimited addon installed"
   else
-    # Webroot failed — fall back to standalone (briefly stops nginx)
-    warn "Webroot mode failed — trying standalone mode..."
-    log "Stopping nginx briefly for certbot..."
-    docker stop nginx_odoo 2>/dev/null || true
-
-    if docker run --rm \
-      -v /etc/letsencrypt:/etc/letsencrypt \
-      -v /var/www/certbot:/var/www/certbot \
-      -p 80:80 \
-      certbot/certbot certonly --standalone \
-        -d "$DOMAIN_PROD" \
-        --email "$SSL_EMAIL" \
-        --agree-tos \
-        --no-eff-email \
-        --non-interactive 2>&1; then
-      log "SSL cert for $DOMAIN_PROD obtained successfully!"
-    else
-      warn "Certbot failed — creating self-signed cert for now..."
-      docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "
-        mkdir -p /etc/letsencrypt/live/$DOMAIN_PROD &&
-        apk add --no-cache openssl > /dev/null 2>&1 &&
-        openssl req -x509 -nodes -days 30 \
-          -newkey rsa:2048 \
-          -keyout /etc/letsencrypt/live/$DOMAIN_PROD/privkey.pem \
-          -out /etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem \
-          -subj '/CN=$DOMAIN_PROD' 2>/dev/null
-      "
-      warn "Self-signed cert created — you can renew later from the SSL page"
-    fi
-
-    # Restart nginx if we stopped it
-    docker start nginx_odoo 2>/dev/null || true
+    warn "odoo_unlimited may have extracted with a different name"
   fi
 fi
 
 
 # ════════════════════════════════════════════════════════════════════
-# STEP 6: Start everything
+# STEP 5: Build and start Odoo
 # ════════════════════════════════════════════════════════════════════
-step "Step 6/6 — Starting production Odoo"
+step "Step 5/5 — Building and starting production Odoo"
 
 cd "$INSTALL_DIR"
 
@@ -495,34 +472,32 @@ set -e
 BACKUP_DIR="${BACKUP_DIR}"
 TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
 mkdir -p "\$BACKUP_DIR"
-
 echo "=== Backing up production database ==="
 docker exec db_odoo pg_dumpall -U odoo > "\$BACKUP_DIR/odoo-prod-\$TIMESTAMP.sql"
-
 echo "=== Cleaning backups older than 30 days ==="
 find "\$BACKUP_DIR" -name "*.sql" -mtime +30 -delete
-
 echo "=== Backup saved: \$BACKUP_DIR/odoo-prod-\$TIMESTAMP.sql ==="
 ls -lh "\$BACKUP_DIR/odoo-prod-\$TIMESTAMP.sql"
 BACKUPSCRIPT
 chmod +x "$INSTALL_DIR/scripts/backup.sh"
 
-# Update .deploy-config with production domain
+# Update .deploy-config
 sed -i '/^DOMAIN_PROD=/d' "$INSTALL_DIR/.deploy-config" 2>/dev/null || true
 sed -i '/^DOMAIN_STAGING=/d' "$INSTALL_DIR/.deploy-config" 2>/dev/null || true
 echo "DOMAIN_PROD=${DOMAIN_PROD}" >> "$INSTALL_DIR/.deploy-config"
 echo "DOMAIN_STAGING=${DOMAIN_STAGING}" >> "$INSTALL_DIR/.deploy-config"
 
-log "Updated .deploy-config with production domain"
+log "Updated .deploy-config"
 
-# Build and start Odoo services only — do NOT rebuild dashboard (it's already running)
-log "Building and starting production Odoo..."
+# Build Odoo image (Dockerfile: odoo:19 + wkhtmltopdf + google-auth + imgkit)
+# and start web + db containers only — dashboard stays running
+log "Building Odoo image and starting containers..."
 docker compose -f "$INSTALL_DIR/docker-compose.yml" --project-directory "$INSTALL_DIR" up -d --build web db
 
-# NOTE: nginx reload is handled by the dashboard backend AFTER the SSE stream ends.
-# Doing it here would kill the live log connection.
+# NOTE: nginx reload is done by the dashboard backend AFTER this script ends
+# and the SSE stream closes cleanly. NOT here.
 
-# Wait for Odoo to start
+# Wait for Odoo to respond
 echo -n "Waiting for Odoo to start"
 for i in {1..30}; do
   echo -n "."
@@ -533,22 +508,19 @@ for i in {1..30}; do
 done
 echo ""
 
-# Verify
 if docker ps --format '{{.Names}}' | grep -q web_odoo; then
   log "Production Odoo is running!"
 else
-  warn "Odoo container may not have started correctly — check logs with: docker logs web_odoo"
+  warn "Odoo may not have started — check: docker logs web_odoo"
 fi
 
 echo ""
-log "═══════════════════════════════════════════════════════════"
-log "  Production deployed at: https://${DOMAIN_PROD}"
-log "═══════════════════════════════════════════════════════════"
+log "Production deployed at: https://${DOMAIN_PROD}"
 log ""
-log "  Next steps:"
-log "    1. Go to https://${DOMAIN_PROD}/web/database/manager"
-log "    2. Create a database (MUST be lowercase name)"
-log "    3. Install odoo_unlimited addon"
-log "    4. Install Accounting"
-log "    5. Register with any code (e.g. abc123456)"
+log "Next steps:"
+log "  1. Go to https://${DOMAIN_PROD}/web/database/manager"
+log "  2. Create a database (MUST be lowercase name)"
+log "  3. Install odoo_unlimited addon"
+log "  4. Install Accounting"
+log "  5. Register with any code (e.g. abc123456)"
 log ""

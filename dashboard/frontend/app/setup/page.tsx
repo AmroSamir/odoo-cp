@@ -43,29 +43,29 @@ export default function SetupPage() {
       }).catch(() => { setLogs((p) => [...p, '', '--- Connection lost ---']); setDeployResult({ success: false, message: 'Connection lost. Refresh to check status.' }); setDeploying(false); });
   };
 
-  const inputCls = "w-full bg-arctic-bg border border-arctic-border rounded-md px-3 py-2 text-[13px] text-[#0c4a6e] placeholder-[#94b3c2] disabled:opacity-50";
+  const inputCls = "w-full bg-page-bg border border-page-border rounded-md px-3 py-2 text-[13px] text-[#1e293b] placeholder-[#94a3b8] disabled:opacity-50";
 
-  if (loading) return <div className="flex min-h-screen bg-arctic-bg"><Sidebar /><div className="flex-1 ml-[240px]"><TopBar /><main className="pt-[48px] p-6"><p className="text-[#7a9baa] text-[13px]">Loading...</p></main></div></div>;
+  if (loading) return <div className="flex min-h-screen bg-page-bg"><Sidebar /><div className="flex-1 ml-[240px]"><TopBar /><main className="pt-[48px] p-6"><p className="text-[#64748b] text-[13px]">Loading...</p></main></div></div>;
 
   return (
-    <div className="flex min-h-screen bg-arctic-bg">
+    <div className="flex min-h-screen bg-page-bg">
       <Sidebar />
       <div className="flex-1 ml-[240px]"><TopBar />
         <main className="pt-[48px] p-6">
-          <h2 className="text-[16px] font-medium text-[#0c4a6e] mb-5">Setup</h2>
+          <h2 className="text-[16px] font-medium text-[#1e293b] mb-5">Setup</h2>
           {status?.productionDeployed ? (
-            <div className="bg-arctic-surface border border-arctic-border rounded-md p-5 max-w-lg">
-              <p className="text-[14px] text-[#0c4a6e] mb-1">Production is running</p>
-              <p className="text-[13px] text-[#4a7a8a] mb-3">Deployed at <a href={`https://${status.domainProd}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:text-accent-hover font-mono text-[12px]">{status.domainProd}</a></p>
+            <div className="bg-page-surface border border-page-border rounded-md p-5 max-w-lg">
+              <p className="text-[14px] text-[#1e293b] mb-1">Production is running</p>
+              <p className="text-[13px] text-[#475569] mb-3">Deployed at <a href={`https://${status.domainProd}`} target="_blank" rel="noopener noreferrer" className="text-accent hover:text-accent-hover font-mono text-[12px]">{status.domainProd}</a></p>
               <Link href="/instances" className="text-[13px] text-accent hover:text-accent-hover">Go to Instances</Link>
             </div>
           ) : (
             <div className="max-w-lg">
-              <div className="bg-arctic-surface border border-arctic-border rounded-md p-5">
-                <p className="text-[14px] text-[#0c4a6e] mb-4">Deploy production Odoo</p>
+              <div className="bg-page-surface border border-page-border rounded-md p-5">
+                <p className="text-[14px] text-[#1e293b] mb-4">Deploy production Odoo</p>
                 <div className="space-y-3">
-                  <div><label className="block text-[13px] text-[#4a7a8a] mb-1">Production domain</label><input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="erp.example.com" disabled={deploying} className={inputCls} /></div>
-                  <div><label className="block text-[13px] text-[#4a7a8a] mb-1">Staging domain (optional)</label><input type="text" value={stagingDomain} onChange={(e) => setStagingDomain(e.target.value)} placeholder={domain ? `staging.${domain}` : 'staging.erp.example.com'} disabled={deploying} className={inputCls} /></div>
+                  <div><label className="block text-[13px] text-[#475569] mb-1">Production domain</label><input type="text" value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="erp.example.com" disabled={deploying} className={inputCls} /></div>
+                  <div><label className="block text-[13px] text-[#475569] mb-1">Staging domain (optional)</label><input type="text" value={stagingDomain} onChange={(e) => setStagingDomain(e.target.value)} placeholder={domain ? `staging.${domain}` : 'staging.erp.example.com'} disabled={deploying} className={inputCls} /></div>
                   <button onClick={handleDeploy} disabled={!domain || deploying} className="w-full py-2 text-[13px] rounded-md bg-accent hover:bg-accent-hover text-white font-medium disabled:opacity-30 transition-colors duration-150">{deploying ? 'Deploying...' : 'Deploy'}</button>
                 </div>
               </div>
