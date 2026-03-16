@@ -520,8 +520,9 @@ log "Building and starting production Odoo..."
 docker compose -f "$INSTALL_DIR/docker-compose.yml" --project-directory "$INSTALL_DIR" up -d --build web db
 
 # Reload nginx to pick up the new config (production server block + SSL cert)
+# Use docker restart instead of compose up to avoid recreating the dashboard container
 log "Reloading nginx configuration..."
-docker compose -f "$INSTALL_DIR/docker-compose.yml" --project-directory "$INSTALL_DIR" up -d --force-recreate nginx
+docker restart nginx_odoo
 
 # Wait for Odoo to start
 echo -n "Waiting for Odoo to start"
