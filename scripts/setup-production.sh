@@ -103,31 +103,6 @@ else
   rm -rf /tmp/odoo-extract /tmp/odoo19e-docker.zip
 fi
 
-# Ensure core Odoo modules (base, web, etc.) are complete.
-# The Dropbox zip contains Enterprise addons but may be missing core Python files.
-# We merge any missing files from the official Odoo Docker image.
-if [ -d "$INSTALL_DIR/addons" ]; then
-  NEEDS_CORE=false
-  if [ ! -f "$INSTALL_DIR/addons/base/__init__.py" ]; then NEEDS_CORE=true; fi
-  if [ ! -f "$INSTALL_DIR/addons/base/__manifest__.py" ]; then NEEDS_CORE=true; fi
-
-  if [ "$NEEDS_CORE" = true ]; then
-    log "Patching addons/ with core Odoo modules from Docker image..."
-    docker pull odoo:19 > /dev/null 2>&1
-    # Copy core addons to a temp dir, then merge (without overwriting existing Enterprise addons)
-    docker run --rm --user root -v /tmp/odoo-core-addons:/mnt/out odoo:19 \
-      cp -r /usr/lib/python3/dist-packages/odoo/addons/. /mnt/out/
-    # Merge: copy core files but don't overwrite existing Enterprise files
-    cp -rn /tmp/odoo-core-addons/* "$INSTALL_DIR/addons/" 2>/dev/null || true
-    # Force-copy base module (must be complete)
-    cp -rf /tmp/odoo-core-addons/base "$INSTALL_DIR/addons/"
-    rm -rf /tmp/odoo-core-addons
-    log "Core modules patched successfully"
-  else
-    log "addons/base is complete — no patching needed"
-  fi
-fi
-
 mkdir -p "$INSTALL_DIR/extra-addons/custom"
 mkdir -p "$INSTALL_DIR/odoo-data"
 
@@ -178,14 +153,14 @@ services:
     ports:
       - "8069:8069"
       - "8072:8072"
-    command: ["--db-filter=.*", "--proxy-mode"]
+    command: ["--db-filter=.*", "--proxy-mode", "--addons-path=/mnt/enterprise-addons,/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons"]
     environment:
       - HOST=db
       - USER=odoo
       - PASSWORD=odoo
     volumes:
       - ${INSTALL_DIR}/extra-addons:/mnt/extra-addons
-      - ${INSTALL_DIR}/addons:/usr/lib/python3/dist-packages/odoo/addons
+      - ${INSTALL_DIR}/addons:/mnt/enterprise-addons:ro
       - ${INSTALL_DIR}/odoo-data:/var/lib/odoo
     restart: unless-stopped
     networks:
