@@ -70,8 +70,9 @@ export default function SetupPage() {
           }
         }
       }
-    }).catch((err) => {
-      setDeployResult({ success: false, message: err.message || 'Connection failed' });
+    }).catch(() => {
+      setLogs((prev) => [...prev, '', '--- Connection to dashboard lost ---', 'The deployment may still be running on the server.', 'Refresh this page once the server is back online to check the status.']);
+      setDeployResult({ success: false, message: 'Connection lost. The deployment may still be running on the server — refresh this page when the dashboard is reachable again.' });
       setDeploying(false);
     });
   };

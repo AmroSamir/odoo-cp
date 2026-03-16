@@ -412,17 +412,17 @@ CERT_EXISTS=$(docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c 
 if [ "$CERT_EXISTS" = "yes" ]; then
   log "SSL cert for $DOMAIN_PROD already exists — skipping"
 else
-  # Stop nginx to free port 80 for certbot standalone mode
-  log "Stopping nginx for certbot..."
-  docker stop nginx_odoo 2>/dev/null || true
+  # Use webroot mode via running nginx — no need to stop nginx!
+  # Nginx already has: location /.well-known/acme-challenge/ { root /var/www/certbot; }
+  # and /var/www/certbot is mounted in the nginx container.
+  log "Requesting SSL certificate for $DOMAIN_PROD (webroot mode)..."
 
-  log "Requesting SSL certificate for $DOMAIN_PROD..."
-  # Run certbot via Docker container — it binds port 80 on the HOST
+  # First try webroot mode (nginx stays up, dashboard stays accessible)
   if docker run --rm \
     -v /etc/letsencrypt:/etc/letsencrypt \
     -v /var/www/certbot:/var/www/certbot \
-    -p 80:80 \
-    certbot/certbot certonly --standalone \
+    certbot/certbot certonly --webroot \
+      -w /var/www/certbot \
       -d "$DOMAIN_PROD" \
       --email "$SSL_EMAIL" \
       --agree-tos \
@@ -430,18 +430,38 @@ else
       --non-interactive 2>&1; then
     log "SSL cert for $DOMAIN_PROD obtained successfully!"
   else
-    warn "Certbot failed — creating self-signed cert for now..."
-    # Create self-signed cert via a temporary container
-    docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "
-      mkdir -p /etc/letsencrypt/live/$DOMAIN_PROD &&
-      apk add --no-cache openssl > /dev/null 2>&1 &&
-      openssl req -x509 -nodes -days 30 \
-        -newkey rsa:2048 \
-        -keyout /etc/letsencrypt/live/$DOMAIN_PROD/privkey.pem \
-        -out /etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem \
-        -subj '/CN=$DOMAIN_PROD' 2>/dev/null
-    "
-    warn "Self-signed cert created — you can renew later from the SSL page"
+    # Webroot failed — fall back to standalone (briefly stops nginx)
+    warn "Webroot mode failed — trying standalone mode..."
+    log "Stopping nginx briefly for certbot..."
+    docker stop nginx_odoo 2>/dev/null || true
+
+    if docker run --rm \
+      -v /etc/letsencrypt:/etc/letsencrypt \
+      -v /var/www/certbot:/var/www/certbot \
+      -p 80:80 \
+      certbot/certbot certonly --standalone \
+        -d "$DOMAIN_PROD" \
+        --email "$SSL_EMAIL" \
+        --agree-tos \
+        --no-eff-email \
+        --non-interactive 2>&1; then
+      log "SSL cert for $DOMAIN_PROD obtained successfully!"
+    else
+      warn "Certbot failed — creating self-signed cert for now..."
+      docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "
+        mkdir -p /etc/letsencrypt/live/$DOMAIN_PROD &&
+        apk add --no-cache openssl > /dev/null 2>&1 &&
+        openssl req -x509 -nodes -days 30 \
+          -newkey rsa:2048 \
+          -keyout /etc/letsencrypt/live/$DOMAIN_PROD/privkey.pem \
+          -out /etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem \
+          -subj '/CN=$DOMAIN_PROD' 2>/dev/null
+      "
+      warn "Self-signed cert created — you can renew later from the SSL page"
+    fi
+
+    # Restart nginx if we stopped it
+    docker start nginx_odoo 2>/dev/null || true
   fi
 fi
 
@@ -495,9 +515,13 @@ echo "DOMAIN_STAGING=${DOMAIN_STAGING}" >> "$INSTALL_DIR/.deploy-config"
 
 log "Updated .deploy-config with production domain"
 
-# Build and start all services
-log "Building and starting all services..."
-docker compose -f "$INSTALL_DIR/docker-compose.yml" --project-directory "$INSTALL_DIR" up -d --build
+# Build and start Odoo services only — do NOT rebuild dashboard (it's already running)
+log "Building and starting production Odoo..."
+docker compose -f "$INSTALL_DIR/docker-compose.yml" --project-directory "$INSTALL_DIR" up -d --build web db
+
+# Reload nginx to pick up the new config (production server block + SSL cert)
+log "Reloading nginx configuration..."
+docker compose -f "$INSTALL_DIR/docker-compose.yml" --project-directory "$INSTALL_DIR" up -d --force-recreate nginx
 
 # Wait for Odoo to start
 echo -n "Waiting for Odoo to start"

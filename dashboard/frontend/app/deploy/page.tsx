@@ -60,8 +60,9 @@ export default function DeployPage() {
 
     es.onerror = () => {
       setDeploying(null);
+      setLogs((prev) => [...prev, '', '--- Connection lost ---', 'The deployment may still be running on the server.', 'Refresh this page to check the status.']);
       if (!deployResult) {
-        setDeployResult({ success: false, message: 'Connection lost during deployment' });
+        setDeployResult({ success: false, message: 'Connection lost. The deployment may still be running — refresh to check status.' });
       }
       es.close();
     };
