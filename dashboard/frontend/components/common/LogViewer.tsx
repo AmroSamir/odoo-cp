@@ -15,7 +15,6 @@ export default function LogViewer({ url, title = 'Logs', onClose }: LogViewerPro
   const containerRef = useRef<HTMLDivElement>(null);
   const autoScroll = useRef(true);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     if (autoScroll.current && bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -41,22 +40,51 @@ export default function LogViewer({ url, title = 'Logs', onClose }: LogViewerPro
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-950 border border-gray-700 rounded-lg w-full max-w-4xl h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+      <div className="bg-void border border-subtle rounded-xl w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl shadow-black/50 animate-slide-up overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-subtle bg-surface">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-white">{title}</span>
-            <span className={`text-xs px-2 py-0.5 rounded ${isConnected ? 'bg-green-500/20 text-green-400' : error ? 'bg-red-500/20 text-red-400' : 'bg-gray-700 text-gray-400'}`}>
-              {isConnected ? 'live' : error ? 'error' : 'connecting...'}
+            {/* Terminal dots */}
+            <div className="flex gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
+            </div>
+            <span className="text-[13px] font-medium text-white font-mono">{title}</span>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md ${
+              isConnected
+                ? 'bg-green-500/10 text-green-400'
+                : error
+                  ? 'bg-red-500/10 text-red-400'
+                  : 'bg-subtle text-gray-500'
+            }`}>
+              {isConnected ? 'LIVE' : error ? 'ERR' : '...'}
             </span>
           </div>
-          <div className="flex items-center gap-2">
-            <button onClick={clear} className="text-xs text-gray-500 hover:text-white px-2 py-1 rounded hover:bg-gray-800">Clear</button>
-            <button onClick={handleCopy} className="text-xs text-gray-500 hover:text-white px-2 py-1 rounded hover:bg-gray-800">Copy</button>
-            <button onClick={handleDownload} className="text-xs text-gray-500 hover:text-white px-2 py-1 rounded hover:bg-gray-800">Download</button>
+          <div className="flex items-center gap-1">
+            {[
+              { label: 'Clear', onClick: clear },
+              { label: 'Copy', onClick: handleCopy },
+              { label: 'Save', onClick: handleDownload },
+            ].map((btn) => (
+              <button
+                key={btn.label}
+                onClick={btn.onClick}
+                className="text-[11px] text-gray-500 hover:text-white px-2 py-1 rounded-md hover:bg-elevated transition-colors font-mono"
+              >
+                {btn.label}
+              </button>
+            ))}
             {onClose && (
-              <button onClick={onClose} className="text-gray-500 hover:text-white ml-2 text-lg leading-none">×</button>
+              <button
+                onClick={onClose}
+                className="text-gray-500 hover:text-white ml-1 w-7 h-7 flex items-center justify-center rounded-md hover:bg-elevated transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             )}
           </div>
         </div>
@@ -65,13 +93,15 @@ export default function LogViewer({ url, title = 'Logs', onClose }: LogViewerPro
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto p-4 font-mono text-xs text-green-300 bg-gray-950"
+          className="flex-1 overflow-y-auto p-5 font-mono text-[12px] leading-[1.7] bg-void relative"
         >
+          <div className="absolute inset-0 scanlines" />
           {lines.length === 0 && (
-            <span className="text-gray-600">Waiting for log output...</span>
+            <span className="text-gray-600">Waiting for output...</span>
           )}
           {lines.map((line, i) => (
-            <div key={i} className="whitespace-pre-wrap break-all leading-relaxed">
+            <div key={i} className="whitespace-pre-wrap break-all text-green-300/90 relative z-10">
+              <span className="text-gray-700 select-none mr-3">{String(i + 1).padStart(3, ' ')}</span>
               {line}
             </div>
           ))}

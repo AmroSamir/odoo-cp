@@ -51,78 +51,57 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
 
   return (
     <>
-      <div className={`bg-gray-900 border rounded-lg p-5 flex flex-col gap-4 ${isProd ? 'border-odoo-purple/50' : 'border-gray-800'}`}>
+      <div className={`bg-surface border rounded-xl p-5 flex flex-col gap-4 card-hover ${
+        isProd ? 'border-accent/30' : 'border-subtle'
+      }`}>
         {/* Header */}
         <div className="flex items-start justify-between">
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-white text-sm">{instance.name}</span>
+              <span className="font-semibold text-white text-sm truncate">{instance.name}</span>
               {isProd && (
-                <span className="text-xs bg-odoo-purple/30 text-odoo-light border border-odoo-purple/30 px-1.5 py-0.5 rounded font-medium">
+                <span className="text-[10px] font-mono font-semibold bg-accent/15 text-accent-glow border border-accent/20 px-1.5 py-0.5 rounded-md tracking-wider">
                   PROD
                 </span>
               )}
             </div>
-            <div className="text-xs text-gray-500 mt-1">Port: {instance.port}</div>
-            {createdAgo !== null && (
-              <div className="text-xs text-gray-600 mt-0.5">
-                {createdAgo === 0 ? 'Created today' : `${createdAgo}d old`}
-                {instance.ttlDays && ` · TTL: ${instance.ttlDays}d`}
-              </div>
-            )}
+            <div className="flex items-center gap-3 mt-1.5">
+              <span className="text-[11px] font-mono text-gray-500">:{instance.port}</span>
+              {createdAgo !== null && (
+                <span className="text-[11px] text-gray-600">
+                  {createdAgo === 0 ? 'today' : `${createdAgo}d ago`}
+                </span>
+              )}
+              {instance.ttlDays && (
+                <span className="text-[10px] font-mono text-yellow-500/70">TTL {instance.ttlDays}d</span>
+              )}
+            </div>
           </div>
           <StatusBadge status={instance.status} />
         </div>
 
         {/* Actions */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {!isProd && (
             <>
               {isRunning ? (
-                <button
-                  onClick={() => action('stop')}
-                  disabled={loading}
-                  className="text-xs px-3 py-1.5 rounded bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/20 disabled:opacity-50 transition-colors"
-                >
-                  Stop
-                </button>
+                <ActionBtn onClick={() => action('stop')} disabled={loading} variant="yellow">Stop</ActionBtn>
               ) : (
-                <button
-                  onClick={() => action('start')}
-                  disabled={loading}
-                  className="text-xs px-3 py-1.5 rounded bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20 disabled:opacity-50 transition-colors"
-                >
-                  Start
-                </button>
+                <ActionBtn onClick={() => action('start')} disabled={loading} variant="green">Start</ActionBtn>
               )}
             </>
           )}
 
           {isRunning && (
-            <button
-              onClick={() => action('restart')}
-              disabled={loading}
-              className="text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 disabled:opacity-50 transition-colors"
-            >
-              Restart
-            </button>
+            <ActionBtn onClick={() => action('restart')} disabled={loading} variant="neutral">Restart</ActionBtn>
           )}
 
-          <button
-            onClick={() => setShowLogs(true)}
-            className="text-xs px-3 py-1.5 rounded bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 transition-colors"
-          >
-            Logs
-          </button>
+          <ActionBtn onClick={() => setShowLogs(true)} variant="neutral">Logs</ActionBtn>
 
           {!isProd && (
-            <button
-              onClick={() => setShowRemoveConfirm(true)}
-              disabled={loading}
-              className="text-xs px-3 py-1.5 rounded bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 disabled:opacity-50 transition-colors ml-auto"
-            >
-              Remove
-            </button>
+            <div className="ml-auto">
+              <ActionBtn onClick={() => setShowRemoveConfirm(true)} disabled={loading} variant="red">Remove</ActionBtn>
+            </div>
           )}
         </div>
       </div>
@@ -146,5 +125,29 @@ export default function InstanceCard({ instance, onRefresh }: InstanceCardProps)
         />
       )}
     </>
+  );
+}
+
+function ActionBtn({ children, onClick, disabled, variant }: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  variant: 'green' | 'yellow' | 'red' | 'neutral';
+}) {
+  const styles: Record<string, string> = {
+    green: 'text-green-400 bg-green-500/8 hover:bg-green-500/15 border-green-500/20',
+    yellow: 'text-yellow-400 bg-yellow-500/8 hover:bg-yellow-500/15 border-yellow-500/20',
+    red: 'text-red-400 bg-red-500/8 hover:bg-red-500/15 border-red-500/20',
+    neutral: 'text-gray-400 bg-elevated hover:bg-subtle border-subtle',
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`text-[11px] font-medium px-2.5 py-1.5 rounded-lg border disabled:opacity-40 transition-all duration-150 ${styles[variant]}`}
+    >
+      {children}
+    </button>
   );
 }

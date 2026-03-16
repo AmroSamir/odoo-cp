@@ -14,18 +14,18 @@ export default function MetricGauge({ label, percent, unit = '%', detail }: Metr
     percent >= 85 ? 'bg-red-500' : percent >= 70 ? 'bg-yellow-500' : 'bg-green-500';
 
   return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="text-gray-500 font-medium">{label}</span>
-      <div className="w-16 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+    <div className="flex items-center gap-2.5 text-xs">
+      <span className="text-gray-500 font-medium text-[11px] uppercase tracking-wider">{label}</span>
+      <div className="w-20 h-1 bg-subtle rounded-full overflow-hidden">
         <div
-          className={`h-full ${bgColor} rounded-full transition-all duration-500`}
+          className={`h-full ${bgColor} rounded-full transition-all duration-700 ease-out`}
           style={{ width: `${Math.min(100, percent)}%` }}
         />
       </div>
-      <span className={`font-mono font-bold ${color}`}>
+      <span className={`font-mono font-semibold text-[11px] ${color}`}>
         {Math.round(percent)}{unit}
       </span>
-      {detail && <span className="text-gray-600 hidden xl:inline">{detail}</span>}
+      {detail && <span className="text-gray-600 font-mono text-[10px] hidden xl:inline">{detail}</span>}
     </div>
   );
 }

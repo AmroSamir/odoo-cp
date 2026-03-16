@@ -18,7 +18,7 @@ extra-addons/odoo_unlimited/
 __pycache__/
 
 # Backups
-backups/
+/backups/
 *.sql
 *.sql.gz
 *.dump

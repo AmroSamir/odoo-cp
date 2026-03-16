@@ -25,16 +25,20 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-white">ODOO MANAGER</h1>
-          <p className="text-gray-500 text-sm mt-1">Odoo 19 Enterprise Dashboard</p>
+    <div className="min-h-screen flex items-center justify-center bg-void dot-grid">
+      <div className="w-full max-w-sm animate-slide-up">
+        {/* Logo */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-accent/15 mb-5">
+            <div className="w-6 h-6 rounded-lg bg-accent" />
+          </div>
+          <h1 className="text-xl font-semibold text-white tracking-wide">ODOO MANAGER</h1>
+          <p className="text-gray-600 text-[12px] font-mono mt-1.5 tracking-wider">v19 ENTERPRISE</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-gray-900 border border-gray-800 rounded-lg p-8 space-y-4">
+        <form onSubmit={handleSubmit} className="bg-surface border border-subtle rounded-2xl p-8 space-y-5">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Password</label>
+            <label className="block text-[12px] font-medium text-gray-400 mb-2">Password</label>
             <input
               type="password"
               value={password}
@@ -42,18 +46,27 @@ export default function LoginPage() {
               placeholder="Enter admin password"
               required
               autoFocus
-              className="w-full bg-gray-800 border border-gray-600 rounded px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-gray-400"
+              className="input-field !py-3"
             />
           </div>
 
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && (
+            <div className="text-[12px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+              {error}
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded bg-odoo-purple hover:bg-odoo-light text-white font-semibold text-sm disabled:opacity-50 transition-colors"
+            className="w-full py-3 rounded-xl bg-accent hover:bg-accent-glow text-white font-semibold text-sm disabled:opacity-50 transition-all duration-200 glow-accent"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Signing in...
+              </span>
+            ) : 'Sign In'}
           </button>
         </form>
       </div>
