@@ -4,6 +4,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const config = require('../config');
 const { runScript } = require('../utils/shellExec');
+const { isProductionDeployed } = require('../utils/deployConfig');
 
 /**
  * Read deploy history (last N entries).
@@ -70,6 +71,11 @@ async function deployToStaging({ onData } = {}) {
 async function deployToProduction({ confirmed, onData } = {}) {
   if (confirmed !== true) {
     throw new Error('Production deploy requires confirmed: true');
+  }
+
+  const deployed = await isProductionDeployed();
+  if (!deployed) {
+    throw new Error('Production not yet deployed. Use the Setup page first.');
   }
 
   const entry = {

@@ -54,6 +54,15 @@ export interface SslCert {
   error?: string;
 }
 
+export interface SetupStatus {
+  productionDeployed: boolean;
+  domainProd: string | null;
+  domainStaging: string | null;
+  domainDashboard: string | null;
+  sslEmail: string | null;
+  serverIp: string | null;
+}
+
 export interface GitStatus {
   branch: string;
   lastCommit: { hash: string; message: string; author: string; date: string } | null;

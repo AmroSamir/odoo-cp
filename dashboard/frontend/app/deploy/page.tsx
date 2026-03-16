@@ -1,18 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import Sidebar from '@/components/layout/Sidebar';
 import TopBar from '@/components/layout/TopBar';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import { usePolling } from '@/lib/usePolling';
 import { useSSE } from '@/lib/useSSE';
-import type { DeployHistoryEntry } from '@/types';
+import api from '@/lib/api';
+import type { DeployHistoryEntry, SetupStatus } from '@/types';
 
 export default function DeployPage() {
   const { data: history, refresh } = usePolling<DeployHistoryEntry[]>('/deploy/history', 10000);
   const [deploying, setDeploying] = useState<null | 'staging' | 'production'>(null);
   const [confirmProd, setConfirmProd] = useState(false);
   const [logUrl, setLogUrl] = useState<string | null>(null);
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+
+  useEffect(() => {
+    api.get('/setup/status').then((res) => setSetupStatus(res.data)).catch(() => null);
+  }, []);
+
+  const prodNotDeployed = setupStatus !== null && !setupStatus.productionDeployed;
 
   const handleDeploy = async (target: 'staging' | 'production') => {
     setDeploying(target);
@@ -53,16 +62,32 @@ export default function DeployPage() {
             {/* Deploy to production */}
             <div className="bg-gray-900 border border-odoo-purple/30 rounded-lg p-6">
               <h3 className="font-semibold text-white mb-1">Production</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Pull latest code, backup database, and rebuild production. Requires confirmation.
-              </p>
-              <button
-                onClick={() => setConfirmProd(true)}
-                disabled={!!deploying}
-                className="px-4 py-2 text-sm rounded bg-odoo-purple hover:bg-odoo-light text-white font-medium disabled:opacity-50 transition-colors"
-              >
-                {deploying === 'production' ? 'Deploying...' : '⬆ Deploy to Production'}
-              </button>
+              {prodNotDeployed ? (
+                <>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Production Odoo has not been deployed yet. Set it up first.
+                  </p>
+                  <Link
+                    href="/setup"
+                    className="inline-block px-4 py-2 text-sm rounded bg-odoo-purple hover:bg-odoo-light text-white font-medium transition-colors"
+                  >
+                    Go to Setup
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Pull latest code, backup database, and rebuild production. Requires confirmation.
+                  </p>
+                  <button
+                    onClick={() => setConfirmProd(true)}
+                    disabled={!!deploying}
+                    className="px-4 py-2 text-sm rounded bg-odoo-purple hover:bg-odoo-light text-white font-medium disabled:opacity-50 transition-colors"
+                  >
+                    {deploying === 'production' ? 'Deploying...' : '⬆ Deploy to Production'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

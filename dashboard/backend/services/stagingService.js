@@ -5,6 +5,7 @@ const path = require('path');
 const config = require('../config');
 const { runScript } = require('../utils/shellExec');
 const dockerService = require('./dockerService');
+const { isProductionDeployed } = require('../utils/deployConfig');
 
 /**
  * Read and parse the staging registry JSON file.
@@ -20,20 +21,23 @@ async function readRegistry() {
 }
 
 /**
- * List all instances: production + all staging entries enriched with live Docker state.
+ * List all instances: production (if deployed) + all staging entries enriched with live Docker state.
  */
 async function listInstances() {
-  const [registry, containers] = await Promise.all([
+  const [registry, containers, prodDeployed] = await Promise.all([
     readRegistry(),
     dockerService.listContainers(),
+    isProductionDeployed(),
   ]);
 
   const containerMap = Object.fromEntries(containers.map((c) => [c.name, c]));
 
-  // Production instance (always listed)
-  const prodContainer = containerMap[config.containers.web];
-  const instances = [
-    {
+  const instances = [];
+
+  // Production instance — only show if deployed
+  if (prodDeployed) {
+    const prodContainer = containerMap[config.containers.web];
+    instances.push({
       name: 'production',
       type: 'production',
       port: 8069,
@@ -43,8 +47,8 @@ async function listInstances() {
       createdAt: null,
       ttlDays: null,
       withSsl: true,
-    },
-  ];
+    });
+  }
 
   // Staging instances
   for (const entry of registry) {
@@ -73,6 +77,11 @@ async function listInstances() {
  * Returns immediately with a job token; callers should poll listInstances.
  */
 async function createInstance({ name, port, ttl, withSsl }) {
+  const prodDeployed = await isProductionDeployed();
+  if (!prodDeployed) {
+    throw new Error('Cannot create staging instances before production is deployed. Deploy production first from the Setup page.');
+  }
+
   const args = ['create', '--name', name];
   if (port) args.push('--port', String(port));
   if (ttl) args.push('--ttl', String(ttl));

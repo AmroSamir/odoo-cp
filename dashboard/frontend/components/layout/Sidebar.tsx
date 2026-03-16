@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import api from '@/lib/api';
 
 const NAV = [
+  { href: '/setup',     label: 'Setup',         icon: '⚙' },
   { href: '/instances', label: 'Instances',    icon: '▦' },
   { href: '/deploy',    label: 'Deploy',        icon: '⬆' },
   { href: '/backups',   label: 'Backups',       icon: '💾' },

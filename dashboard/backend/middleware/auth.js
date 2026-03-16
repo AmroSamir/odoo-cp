@@ -5,7 +5,7 @@ const config = require('../config');
 
 // Routes that don't require authentication
 // Note: when mounted via app.use('/api', authMiddleware), req.path has the /api prefix stripped
-const PUBLIC_PATHS = new Set(['/auth/login', '/health']);
+const PUBLIC_PATHS = new Set(['/auth/login', '/health', '/setup/status']);
 
 /**
  * JWT authentication middleware.
