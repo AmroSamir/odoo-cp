@@ -403,9 +403,13 @@ log "Nginx config created for $DOMAIN_PROD and $DOMAIN_DASHBOARD"
 # ════════════════════════════════════════════════════════════════════
 step "Step 5/6 — SSL certificate for production domain"
 
-mkdir -p /var/www/certbot
+# Create /var/www/certbot on the host (we may be running inside a container)
+docker run --rm -v /var/www:/var/www alpine mkdir -p /var/www/certbot 2>/dev/null || mkdir -p /var/www/certbot 2>/dev/null || true
 
-if [ -d "/etc/letsencrypt/live/$DOMAIN_PROD" ]; then
+# Check if cert already exists (via a temporary container that mounts /etc/letsencrypt)
+CERT_EXISTS=$(docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "[ -d '/etc/letsencrypt/live/$DOMAIN_PROD' ] && echo yes || echo no" 2>/dev/null || echo "no")
+
+if [ "$CERT_EXISTS" = "yes" ]; then
   log "SSL cert for $DOMAIN_PROD already exists — skipping"
 else
   # Stop nginx to free port 80 for certbot standalone mode
@@ -413,21 +417,30 @@ else
   docker stop nginx_odoo 2>/dev/null || true
 
   log "Requesting SSL certificate for $DOMAIN_PROD..."
-  if certbot certonly --standalone \
-    -d "$DOMAIN_PROD" \
-    --email "$SSL_EMAIL" \
-    --agree-tos \
-    --no-eff-email \
-    --non-interactive 2>&1; then
+  # Run certbot via Docker container — it binds port 80 on the HOST
+  if docker run --rm \
+    -v /etc/letsencrypt:/etc/letsencrypt \
+    -v /var/www/certbot:/var/www/certbot \
+    -p 80:80 \
+    certbot/certbot certonly --standalone \
+      -d "$DOMAIN_PROD" \
+      --email "$SSL_EMAIL" \
+      --agree-tos \
+      --no-eff-email \
+      --non-interactive 2>&1; then
     log "SSL cert for $DOMAIN_PROD obtained successfully!"
   else
     warn "Certbot failed — creating self-signed cert for now..."
-    mkdir -p "/etc/letsencrypt/live/$DOMAIN_PROD"
-    openssl req -x509 -nodes -days 30 \
-      -newkey rsa:2048 \
-      -keyout "/etc/letsencrypt/live/$DOMAIN_PROD/privkey.pem" \
-      -out "/etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem" \
-      -subj "/CN=$DOMAIN_PROD" 2>/dev/null
+    # Create self-signed cert via a temporary container
+    docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "
+      mkdir -p /etc/letsencrypt/live/$DOMAIN_PROD &&
+      apk add --no-cache openssl > /dev/null 2>&1 &&
+      openssl req -x509 -nodes -days 30 \
+        -newkey rsa:2048 \
+        -keyout /etc/letsencrypt/live/$DOMAIN_PROD/privkey.pem \
+        -out /etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem \
+        -subj '/CN=$DOMAIN_PROD' 2>/dev/null
+    "
     warn "Self-signed cert created — you can renew later from the SSL page"
   fi
 fi
@@ -484,7 +497,7 @@ log "Updated .deploy-config with production domain"
 
 # Build and start all services
 log "Building and starting all services..."
-docker compose up -d --build
+docker compose -f "$INSTALL_DIR/docker-compose.yml" --project-directory "$INSTALL_DIR" up -d --build
 
 # Wait for Odoo to start
 echo -n "Waiting for Odoo to start"
