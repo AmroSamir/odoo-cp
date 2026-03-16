@@ -353,7 +353,8 @@ get_ssl_cert() {
       --email "$SSL_EMAIL" \
       --agree-tos \
       --no-eff-email \
-      --non-interactive 2>&1; then
+      --non-interactive \
+      --keep-until-expiring 2>&1; then
       log "SSL cert for $domain obtained successfully!"
       return 0
     fi
@@ -366,9 +367,13 @@ get_ssl_cert() {
   return 1
 }
 
-# Function: create self-signed fallback
+# Function: create self-signed fallback (only if no cert file exists at all)
 create_self_signed() {
   local domain=$1
+  if [ -f "/etc/letsencrypt/live/$domain/fullchain.pem" ]; then
+    warn "Cert file already exists for $domain — not overwriting"
+    return 0
+  fi
   warn "Creating temporary self-signed cert for $domain so Nginx can start..."
   mkdir -p "/etc/letsencrypt/live/$domain"
   openssl req -x509 -nodes -days 30 \
@@ -378,8 +383,8 @@ create_self_signed() {
     -subj "/CN=$domain" 2>/dev/null
 }
 
-# Get cert for dashboard domain
-if [ -d "/etc/letsencrypt/live/$DOMAIN_DASHBOARD" ]; then
+# Get cert for dashboard domain — skip if cert FILE already exists (not just directory)
+if [ -f "/etc/letsencrypt/live/$DOMAIN_DASHBOARD/fullchain.pem" ]; then
   log "SSL cert for $DOMAIN_DASHBOARD already exists, skipping..."
 else
   if ! get_ssl_cert "$DOMAIN_DASHBOARD"; then

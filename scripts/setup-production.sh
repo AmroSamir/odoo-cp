@@ -308,20 +308,27 @@ NGINXCONF_TEMP
       --email "$SSL_EMAIL" \
       --agree-tos \
       --no-eff-email \
-      --non-interactive 2>&1; then
+      --non-interactive \
+      --keep-until-expiring 2>&1; then
     log "SSL cert for $DOMAIN_PROD obtained successfully!"
   else
-    warn "Certbot webroot failed — creating self-signed cert as fallback..."
-    docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "
-      mkdir -p /etc/letsencrypt/live/$DOMAIN_PROD &&
-      apk add --no-cache openssl > /dev/null 2>&1 &&
-      openssl req -x509 -nodes -days 30 \
-        -newkey rsa:2048 \
-        -keyout /etc/letsencrypt/live/$DOMAIN_PROD/privkey.pem \
-        -out /etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem \
-        -subj '/CN=$DOMAIN_PROD' 2>/dev/null
-    "
-    warn "Self-signed cert created — renew from SSL page when DNS is ready"
+    # Only create self-signed if no cert file exists at all — never overwrite existing certs
+    CERT_FILE_EXISTS=$(docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "[ -f '/etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem' ] && echo yes || echo no" 2>/dev/null || echo "no")
+    if [ "$CERT_FILE_EXISTS" = "yes" ]; then
+      warn "Certbot failed but existing cert found — keeping it"
+    else
+      warn "Certbot failed — creating self-signed cert as fallback..."
+      docker run --rm -v /etc/letsencrypt:/etc/letsencrypt alpine sh -c "
+        mkdir -p /etc/letsencrypt/live/$DOMAIN_PROD &&
+        apk add --no-cache openssl > /dev/null 2>&1 &&
+        openssl req -x509 -nodes -days 30 \
+          -newkey rsa:2048 \
+          -keyout /etc/letsencrypt/live/$DOMAIN_PROD/privkey.pem \
+          -out /etc/letsencrypt/live/$DOMAIN_PROD/fullchain.pem \
+          -subj '/CN=$DOMAIN_PROD' 2>/dev/null
+      "
+      warn "Self-signed cert created — renew from SSL page when rate limit resets"
+    fi
   fi
 fi
 
