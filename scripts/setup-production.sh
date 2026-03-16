@@ -39,11 +39,13 @@ step() { echo -e "\n${CYAN}${BOLD}━━━ $1 ━━━${NC}\n"; }
 # ── Parse arguments ──────────────────────────────────────────────
 DOMAIN_PROD=""
 DOMAIN_STAGING_OVERRIDE=""
+FORCE=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --domain) DOMAIN_PROD="$2"; shift 2 ;;
     --staging-domain) DOMAIN_STAGING_OVERRIDE="$2"; shift 2 ;;
+    --force) FORCE=true; shift ;;
     *) err "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -66,8 +68,9 @@ log "Install directory:  $INSTALL_DIR"
 echo ""
 
 EXISTING_PROD=$(grep "^DOMAIN_PROD=" "$INSTALL_DIR/.deploy-config" 2>/dev/null | cut -d= -f2)
-if [ -n "$EXISTING_PROD" ]; then
+if [ -n "$EXISTING_PROD" ] && [ "$FORCE" = false ]; then
   err "Production is already deployed at $EXISTING_PROD"
+  err "Use --force to re-run setup"
   exit 1
 fi
 
@@ -98,6 +101,31 @@ else
   fi
 
   rm -rf /tmp/odoo-extract /tmp/odoo19e-docker.zip
+fi
+
+# Ensure core Odoo modules (base, web, etc.) are complete.
+# The Dropbox zip contains Enterprise addons but may be missing core Python files.
+# We merge any missing files from the official Odoo Docker image.
+if [ -d "$INSTALL_DIR/addons" ]; then
+  NEEDS_CORE=false
+  if [ ! -f "$INSTALL_DIR/addons/base/__init__.py" ]; then NEEDS_CORE=true; fi
+  if [ ! -f "$INSTALL_DIR/addons/base/__manifest__.py" ]; then NEEDS_CORE=true; fi
+
+  if [ "$NEEDS_CORE" = true ]; then
+    log "Patching addons/ with core Odoo modules from Docker image..."
+    docker pull odoo:19 > /dev/null 2>&1
+    # Copy core addons to a temp dir, then merge (without overwriting existing Enterprise addons)
+    docker run --rm --user root -v /tmp/odoo-core-addons:/mnt/out odoo:19 \
+      cp -r /usr/lib/python3/dist-packages/odoo/addons/. /mnt/out/
+    # Merge: copy core files but don't overwrite existing Enterprise files
+    cp -rn /tmp/odoo-core-addons/* "$INSTALL_DIR/addons/" 2>/dev/null || true
+    # Force-copy base module (must be complete)
+    cp -rf /tmp/odoo-core-addons/base "$INSTALL_DIR/addons/"
+    rm -rf /tmp/odoo-core-addons
+    log "Core modules patched successfully"
+  else
+    log "addons/base is complete — no patching needed"
+  fi
 fi
 
 mkdir -p "$INSTALL_DIR/extra-addons/custom"
