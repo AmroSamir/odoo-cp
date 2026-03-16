@@ -29,11 +29,8 @@ export default function LoginPage() {
       <div className="w-full max-w-sm animate-slide-up">
         {/* Logo */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-accent/15 mb-5">
-            <div className="w-6 h-6 rounded-lg bg-accent" />
-          </div>
-          <h1 className="text-xl font-semibold text-white tracking-wide">ODOO MANAGER</h1>
-          <p className="text-gray-600 text-[12px] font-mono mt-1.5 tracking-wider">v19 ENTERPRISE</p>
+          <img src="/logo.png" alt="Logo" className="h-10 w-auto mx-auto mb-4" />
+          <p className="text-gray-600 text-[12px] font-mono tracking-wider">MANAGEMENT DASHBOARD</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-surface border border-subtle rounded-2xl p-8 space-y-5">

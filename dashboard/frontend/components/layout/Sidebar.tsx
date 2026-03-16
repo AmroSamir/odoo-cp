@@ -32,16 +32,8 @@ export default function Sidebar() {
   return (
     <aside className="fixed left-0 top-0 h-full w-[var(--sidebar-width)] bg-surface border-r border-subtle flex flex-col z-20">
       {/* Logo */}
-      <div className="px-6 py-5 border-b border-subtle">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center">
-            <div className="w-3 h-3 rounded-sm bg-accent" />
-          </div>
-          <div>
-            <div className="text-[13px] font-semibold text-white tracking-wide">ODOO MANAGER</div>
-            <div className="text-[10px] text-gray-500 font-mono tracking-wider">v19 ENTERPRISE</div>
-          </div>
-        </div>
+      <div className="px-5 py-5 border-b border-subtle">
+        <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
       </div>
 
       {/* Nav */}
