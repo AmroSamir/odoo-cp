@@ -333,8 +333,7 @@ NGINXCONF_TEMP
       --agree-tos \
       --no-eff-email \
       --non-interactive \
-      --keep-until-expiring \
-      --staging 2>&1; then
+      --keep-until-expiring 2>&1; then
     log "SSL cert for $DOMAIN_PROD obtained successfully!"
   else
     # Only create self-signed if no cert file exists at all — never overwrite existing certs
