@@ -41,15 +41,16 @@ _cleanup_on_error() {
 # COMMAND: create
 # ════════════════════════════════════════════════════════════════════════════════
 cmd_create() {
-  local name="" port="" ttl="" with_ssl=false
+  local name="" port="" ttl="" with_ssl=false fork_from="production"
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --name)    name="$2";  shift 2 ;;
-      --port)    port="$2";  shift 2 ;;
-      --ttl)     ttl="$2";   shift 2 ;;
-      --with-ssl) with_ssl=true; shift ;;
+      --name)      name="$2";      shift 2 ;;
+      --port)      port="$2";      shift 2 ;;
+      --ttl)       ttl="$2";       shift 2 ;;
+      --fork-from) fork_from="$2"; shift 2 ;;
+      --with-ssl)  with_ssl=true;  shift ;;
       *) log_error "Unknown argument: $1"; cmd_help; exit 1 ;;
     esac
   done
@@ -120,13 +121,13 @@ cmd_create() {
   generate_instance_compose "$instance_dir" "$name" "$port" "$db_user" "$db_pass" "$db_name"
   generate_instance_manage_sh "$instance_dir" "$name"
 
-  # Clone production database
-  log_step "Cloning production database"
-  _clone_production_db "$name" "$instance_dir" "$db_user" "$db_pass" "$db_name"
+  # Clone database from source instance
+  log_step "Cloning database from ${fork_from}"
+  _clone_database "$name" "$instance_dir" "$db_user" "$db_pass" "$db_name" "$fork_from"
 
-  # Copy production filestore
-  log_step "Copying production filestore"
-  _copy_filestore "$instance_dir"
+  # Copy filestore from source instance
+  log_step "Copying filestore from ${fork_from}"
+  _copy_filestore "$instance_dir" "$fork_from"
 
   # Start full stack
   log_step "Starting staging instance"
@@ -150,6 +151,7 @@ cmd_create() {
   "db_name": "${db_name}",
   "db_user": "${db_user}",
   "created_at": "${created_at}",
+  "fork_from": "${fork_from}",
   "ttl_days": ${ttl:-null},
   "with_ssl": ${with_ssl},
   "status": "running"
@@ -182,42 +184,78 @@ JSON
   log_info "To manage this instance: ${instance_dir}/manage.sh [start|stop|logs|status|remove]"
 }
 
-# ── Clone production DB ───────────────────────────────────────────────────────
-_clone_production_db() {
+# ── Clone database from any source (production or staging) ────────────────────
+_clone_database() {
   local name="$1"
   local instance_dir="$2"
   local db_user="$3"
   local db_pass="$4"
   local db_name="$5"
+  local fork_from="$6"  # "production" or a staging instance name (e.g. "001")
   local safe_name
   safe_name=$(echo "$name" | tr '-' '_')
   local dump_file="/tmp/stg-${name}-$(date +%s).dump"
 
-  # Ensure production DB container is running
-  if ! is_container_running "db_odoo"; then
-    log_error "Production DB container 'db_odoo' is not running"
+  # Resolve source container and DB user based on fork_from
+  local src_db_container src_db_user src_label
+  if [ "$fork_from" = "production" ]; then
+    src_db_container="db_odoo"
+    src_db_user="odoo"
+    src_label="production"
+  else
+    # Fork from another staging instance — strip "stg-" prefix if present
+    local src_name="${fork_from#stg-}"
+    local src_safe_name
+    src_safe_name=$(echo "$src_name" | tr '-' '_')
+    src_db_container="db_stg_${src_safe_name}"
+    src_label="stg-${src_name}"
+
+    # Read source DB user from its registry entry
+    local src_entry
+    src_entry=$(registry_get "$src_name" 2>/dev/null || echo "")
+    if [ -z "$src_entry" ]; then
+      log_error "Source instance '${src_label}' not found in registry"
+      exit 1
+    fi
+    src_db_user=$(echo "$src_entry" | jq -r '.db_user // empty')
+    if [ -z "$src_db_user" ]; then
+      # Fallback: derive from name convention
+      src_db_user="stg_${src_safe_name}"
+    fi
+    # Read db_name from registry for precise DB lookup (avoids alphabetical heuristic)
+    local src_registry_db_name
+    src_registry_db_name=$(echo "$src_entry" | jq -r '.db_name // empty')
+  fi
+
+  # Ensure source DB container is running
+  if ! is_container_running "$src_db_container"; then
+    log_error "Source DB container '${src_db_container}' is not running"
     exit 1
   fi
 
-  log_info "Dumping production database (this may take a few minutes)..."
-  if ! docker exec db_odoo bash -c "pg_dumpall -U odoo --globals-only" > "${dump_file}.globals" 2>/dev/null; then
+  log_info "Dumping ${src_label} database (this may take a few minutes)..."
+  if ! docker exec "$src_db_container" pg_dumpall -U "$src_db_user" --globals-only > "${dump_file}.globals" 2>/dev/null; then
     log_warn "Could not dump globals — continuing without them"
   fi
 
-  # Find the production DB name (first non-template, non-postgres DB)
-  local prod_db
-  prod_db=$(docker exec db_odoo psql -U odoo -t -c \
-    "SELECT datname FROM pg_database WHERE datname NOT IN ('postgres','template0','template1') ORDER BY datname LIMIT 1;" \
-    2>/dev/null | tr -d ' \n' || echo "")
+  # Find the source DB name — use registry db_name for staging, query for production
+  local src_db=""
+  if [ "$fork_from" != "production" ] && [ -n "${src_registry_db_name:-}" ]; then
+    src_db="$src_registry_db_name"
+  else
+    src_db=$(docker exec "$src_db_container" psql -U "$src_db_user" -t -c \
+      "SELECT datname FROM pg_database WHERE datname NOT IN ('postgres','template0','template1') ORDER BY datname LIMIT 1;" \
+      2>/dev/null | tr -d ' \n' || echo "")
+  fi
 
-  if [ -z "$prod_db" ]; then
-    log_error "Could not find a production database in db_odoo. Create a database first."
+  if [ -z "$src_db" ]; then
+    log_error "Could not find a database in ${src_db_container}. Ensure the source instance has a database."
     rm -f "${dump_file}.globals"
     exit 1
   fi
 
-  log_info "Found production database: $prod_db — dumping..."
-  docker exec db_odoo pg_dump -U odoo -Fc "$prod_db" > "$dump_file"
+  log_info "Found ${src_label} database: $src_db — dumping..."
+  docker exec "$src_db_container" pg_dump -U "$src_db_user" -Fc "$src_db" > "$dump_file"
   log_info "Dump complete ($(du -sh "$dump_file" | cut -f1))"
 
   # Start only the DB container for this instance
@@ -236,33 +274,42 @@ _clone_production_db() {
     "GRANT ALL PRIVILEGES ON DATABASE \"${db_name}\" TO \"${db_user}\";" 2>/dev/null || true
 
   # Restore the dump
-  log_info "Restoring production dump into staging database..."
+  log_info "Restoring ${src_label} dump into staging database..."
   docker exec -i "db_stg_${safe_name}" pg_restore \
     -U "${db_user}" \
     -d "${db_name}" \
     --no-owner \
     --no-acl \
-    --exit-on-error \
     < "$dump_file" || {
       log_warn "pg_restore completed with warnings (common for cross-user restores)"
     }
 
   # Clean up dump file
   rm -f "$dump_file" "${dump_file}.globals"
-  log_success "Production database cloned to stg-${name}"
+  log_success "${src_label} database cloned to stg-${name}"
 }
 
-# ── Copy production filestore ─────────────────────────────────────────────────
+# ── Copy filestore from source instance ───────────────────────────────────────
 _copy_filestore() {
   local instance_dir="$1"
-  local prod_filestore="${INSTALL_DIR}/odoo-data"
+  local fork_from="$2"  # "production" or staging instance name
+  local src_filestore src_label
 
-  if [ -d "$prod_filestore" ] && [ "$(ls -A "$prod_filestore" 2>/dev/null)" ]; then
-    log_info "Copying production filestore (this may take a while)..."
-    cp -a "${prod_filestore}/." "${instance_dir}/filestore/"
+  if [ "$fork_from" = "production" ]; then
+    src_filestore="${INSTALL_DIR}/odoo-data"
+    src_label="production"
+  else
+    local src_name="${fork_from#stg-}"
+    src_filestore="${STAGING_DIR}/stg-${src_name}/filestore"
+    src_label="stg-${src_name}"
+  fi
+
+  if [ -d "$src_filestore" ] && [ "$(ls -A "$src_filestore" 2>/dev/null)" ]; then
+    log_info "Copying ${src_label} filestore (this may take a while)..."
+    cp -a "${src_filestore}/." "${instance_dir}/filestore/"
     log_success "Filestore copied ($(du -sh "${instance_dir}/filestore" | cut -f1))"
   else
-    log_warn "Production filestore is empty or missing — starting with empty filestore"
+    log_warn "${src_label} filestore is empty or missing — starting with empty filestore"
   fi
 }
 
@@ -498,6 +545,7 @@ cmd_help() {
   echo "  Create options:"
   echo "    --name NAME        Instance name (required, auto-lowercased)"
   echo "    --port PORT        Port number (auto-assigned from 8171-8199 if omitted)"
+  echo "    --fork-from SOURCE Fork from 'production' (default) or a staging instance name"
   echo "    --ttl DAYS         Auto-delete after N days (optional)"
   echo "    --with-ssl         Generate nginx vhost + request SSL certificate"
   echo ""
@@ -505,6 +553,7 @@ cmd_help() {
   echo "    ./staging-manager.sh create --name \"test-invoice\""
   echo "    ./staging-manager.sh create --name \"hr-test\" --port 8175 --ttl 7"
   echo "    ./staging-manager.sh create --name \"demo\" --with-ssl"
+  echo "    ./staging-manager.sh create --name \"feature-x\" --fork-from 001"
   echo "    ./staging-manager.sh list"
   echo "    ./staging-manager.sh stop --name \"test-invoice\""
   echo "    ./staging-manager.sh remove --name \"test-invoice\""

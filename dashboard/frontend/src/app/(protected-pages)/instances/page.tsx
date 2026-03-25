@@ -55,6 +55,7 @@ export default function InstancesPage() {
     const [createPort, setCreatePort] = useState('')
     const [createTtl, setCreateTtl] = useState('')
     const [createSsl, setCreateSsl] = useState(false)
+    const [createForkFrom, setCreateForkFrom] = useState('production')
     const [creating, setCreating] = useState(false)
     const [createError, setCreateError] = useState('')
 
@@ -83,6 +84,7 @@ export default function InstancesPage() {
                 port: createPort ? parseInt(createPort, 10) : undefined,
                 ttlDays: createTtl ? parseInt(createTtl, 10) : undefined,
                 withSsl: createSsl,
+                forkFrom: createForkFrom,
             })
             toast.push(
                 <Notification type="success" title="Instance Created">
@@ -94,6 +96,7 @@ export default function InstancesPage() {
             setCreatePort('')
             setCreateTtl('')
             setCreateSsl(false)
+            setCreateForkFrom('production')
             refresh()
         } catch (err: any) {
             setCreateError(err.response?.data?.error || 'Failed to create instance')
@@ -364,7 +367,7 @@ export default function InstancesPage() {
                 <div className="p-6">
                     <h3 className="text-lg font-semibold mb-1">Create Staging Instance</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-                        Clone production data into a new isolated staging environment.
+                        Clone data from any instance into a new isolated staging environment.
                     </p>
 
                     {createError && (
@@ -384,6 +387,29 @@ export default function InstancesPage() {
                                     Container: stg-{sanitizeName(createName)}
                                 </p>
                             )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1">Fork from</label>
+                            <select
+                                className="w-full h-11 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
+                                value={createForkFrom}
+                                onChange={(e) => setCreateForkFrom(e.target.value)}
+                            >
+                                {productionInstance && (
+                                    <option value="production">
+                                        {productionInstance.name} (production)
+                                    </option>
+                                )}
+                                {instances?.filter((i) => i.type === 'staging').map((i) => (
+                                    <option key={i.name} value={i.name}>
+                                        {i.name}{i.status !== 'running' ? ` (${i.status})` : ''}
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-xs text-gray-400 mt-1">
+                                Database and filestore will be cloned from this instance
+                            </p>
                         </div>
 
                         <div>

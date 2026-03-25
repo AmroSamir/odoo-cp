@@ -23,12 +23,14 @@ router.get('/', async (req, res, next) => {
 /**
  * POST /api/instances
  * Create a new staging instance.
- * Body: { name, port?, ttl?, withSsl? }
+ * Body: { name, port?, ttl?, withSsl?, forkFrom? }
  * Returns 202 — creation is async, poll GET /api/instances to track.
  */
 router.post('/', async (req, res, next) => {
   try {
-    let { name, port, ttl, withSsl } = req.body;
+    let { name, port, ttl, ttlDays, withSsl, forkFrom } = req.body;
+    // Accept both "ttl" and "ttlDays" from clients
+    ttl = ttl ?? ttlDays;
 
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: 'name is required' });
@@ -57,8 +59,21 @@ router.post('/', async (req, res, next) => {
       }
     }
 
+    // Validate forkFrom if provided (must be "production" or an existing staging name)
+    if (forkFrom && typeof forkFrom === 'string') {
+      forkFrom = forkFrom.replace(/^stg-/, '');
+      if (forkFrom !== 'production') {
+        // Validate that source instance exists
+        const registry = await stagingService.readRegistry();
+        const sourceExists = registry.some((e) => e.name === forkFrom);
+        if (!sourceExists) {
+          return res.status(400).json({ error: `Source instance "stg-${forkFrom}" not found` });
+        }
+      }
+    }
+
     // Launch creation in background (non-blocking)
-    stagingService.createInstance({ name, port, ttl, withSsl: !!withSsl })
+    stagingService.createInstance({ name, port, ttl, withSsl: !!withSsl, forkFrom: forkFrom || 'production' })
       .then((result) => {
         if (result.exitCode !== 0) {
           console.error(`[create stg-${name}] failed:`, result.stderr);

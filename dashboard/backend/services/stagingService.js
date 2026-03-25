@@ -76,7 +76,7 @@ async function listInstances() {
  * Create a new staging instance by calling staging-manager.sh.
  * Returns immediately with a job token; callers should poll listInstances.
  */
-async function createInstance({ name, port, ttl, withSsl }) {
+async function createInstance({ name, port, ttl, withSsl, forkFrom }) {
   const prodDeployed = await isProductionDeployed();
   if (!prodDeployed) {
     throw new Error('Cannot create staging instances before production is deployed. Deploy production first from the Setup page.');
@@ -85,6 +85,7 @@ async function createInstance({ name, port, ttl, withSsl }) {
   const args = ['create', '--name', name];
   if (port) args.push('--port', String(port));
   if (ttl) args.push('--ttl', String(ttl));
+  args.push('--fork-from', forkFrom || 'production');
   if (withSsl) args.push('--with-ssl');
 
   // Run in background (non-blocking from the API perspective)
